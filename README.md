@@ -1,8 +1,8 @@
-# dogbone2
+# dogbone2 - under development, changes frequently
 #Author-Peter Ludikar
 #Description-A Fusion 360 Add-In for making dog-bone fillets.
 
-This version is a proof of concept, and Beta - it's still underdevelopment. 
+This version is a proof of concept, and Beta - . 
 
 I've completely revamped the dogbone add-in by Casey Rogers and Patrick Rainsberry and David Liu
 some of the original utilities have remained, but mostly everything else has changed.
