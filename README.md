@@ -14,6 +14,7 @@ the performance of this approach is day and night compared to the original versi
 
 Select the face you want the dogbones to drop from. Specify a tool diameter and a radial offset.
 The add-in will then create a dogbone with diamater equal to the tool diameter plus
+The add-in will then create a dogbone with diameter equal to the tool diameter plus
 twice the offset (as the offset is applied to the radius) at each selected edge.
 
 to do:
