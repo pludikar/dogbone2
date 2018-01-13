@@ -223,7 +223,6 @@ class DogboneCommand(object):
         startTlMarker = self.design.timeline.markerPosition
 
         for face in self.faces:
-#            face in an assembly context needs to be treated differently to a face that is not in a component
 #            face in an assembly context needs to be treated differently to a face that is at rootComponent level
             if face.assemblyContext:
                comp = face.assemblyContext.sourceComponent
