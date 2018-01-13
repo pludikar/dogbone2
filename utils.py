@@ -103,40 +103,22 @@ def getVertexAtFace(face, edge):
 def getFaceNormal(face):
     return face.evaluator.getNormalAtPoint(face.pointOnFace)[1]
     
-
-# Finds and returns two EDGES that form a corner adjacent to EDGE
-#def findCorner(edge):
-#    # XXX(dliu): Is there a way to get adjacent edges directly instead of going from edge => face => edges?
-#    faces = edge.faces
-#    edges0 = faces.item(0).edges
-#    edges1 = faces.item(1).edges
-#    for e0 in edges0:
-#        if e0 == edge:
-#            continue
-#        for e1 in edges1:
-#            if e1 == edge:
-#                continue
-#            a0, a1 = e0.startVertex, e0.endVertex
-#            b0, b1 = e1.startVertex, e1.endVertex
-#            if a0 == b0 or a0 == b1 or a1 == b0 or a1 == b1:
-#                return e0, e1
-#    raise RuntimeError("findCorner called on non-adjacent edges")
     
 def messageBox(*args):
     adsk.core.Application.get().userInterface.messageBox(*args)
 
 def clearFaceAttribs(design):
-    attribs = design.findAttributes("dogBone","dbFace")
+    attribs = design.findAttributes("dogBoneGroup","faceRef")
     if not attribs:
         return
     for attrib in attribs:
         attrib.deleteMe()
         
 def setFaceAttrib(face):
-    face.attributes.add("dogBone", "dbFace","1")
+    face.attributes.add("dogBoneGroup", "faceRef","1")
     
 def refreshFace(design):
-    attribs = design.findAttributes("dogBone","dbFace")
+    attribs = design.findAttributes("dogBoneGroup","faceRef")
     if len(attribs) !=1:
         return False
     return attribs[0].parent

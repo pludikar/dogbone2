@@ -217,9 +217,21 @@ class DogboneCommand(object):
         if not self.design:
             raise RuntimeError('No active Fusion design')
         holeInput = adsk.fusion.HoleFeatureInput.cast(None)
+        userParams = adsk.fusion.UserParameters.cast(self.design.userParameters)
 
-        radius = self.circVal / 2 + self.offVal
-        offset = adsk.core.ValueInput.createByReal(radius/math.sqrt(2))
+        if not userParams.itemByName('dbToolDia'):
+            dValIn = adsk.core.ValueInput.createByString(self.circStr)
+            dParameter = userParams.add('dbToolDia',dValIn, self.design.unitsManager.defaultLengthUnits, '')
+            dParameter.isFavorite = True
+        if not userParams.itemByName('dbRadius'):
+            rValIn = adsk.core.ValueInput.createByString('dbToolDia/2 + ' + self.offStr)
+            rParameter = userParams.add('dbRadius',rValIn, self.design.unitsManager.defaultLengthUnits, '')
+        if not userParams.itemByName('dbOffset'):
+            oValIn = adsk.core.ValueInput.createByString('dbRadius / sqrt(2)')
+            oParameter = userParams.add('dbOffset', oValIn, self.design.unitsManager.defaultLengthUnits, '')
+
+        radius = userParams.itemByName('dbRadius').value
+        offset = adsk.core.ValueInput.createByString('dbOffset')
         startTlMarker = self.design.timeline.markerPosition
 
         for face in self.faces:
@@ -270,7 +282,7 @@ class DogboneCommand(object):
 #                sketch.sketchPoints.add(initGuess)        #for debugging 
 
                 #create hole attributes
-                holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByReal(2*radius))
+                holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByString('dbToolDia'))
                 holeInput.tipAngle = adsk.core.ValueInput.createByString('180 deg')
                 holeInput.isDefaultDirection = True
                 holeInput.creationOccurrence = face.assemblyContext
