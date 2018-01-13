@@ -1,6 +1,7 @@
 # dogbone2
 #Author-Peter Ludikar
 #Description-An Add-In for making dog-bone fillets.
+#Description-A Fusion 360 Add-In for making dog-bone fillets.
 
 This version is a proof of concept 
 
@@ -16,6 +17,7 @@ The add-in will then create a dogbone with diamater equal to the tool diameter p
 twice the offset (as the offset is applied to the radius) at each selected edge.
 
 to do:
+To do:
 1. Improve the usability and speed
    Selection of multiple faces and selecting/deselecting target edges (intention is to use attributes to relate
    edges to faces, probably collected during onFaceSelect events - that way the prepopulated entities don't have to be 
