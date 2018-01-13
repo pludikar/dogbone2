@@ -225,10 +225,10 @@ class DogboneCommand(object):
             dParameter.isFavorite = True
         if not userParams.itemByName('dbRadius'):
             rValIn = adsk.core.ValueInput.createByString('dbToolDia/2 + ' + self.offStr)
-            rParameter = userParams.add('dbRadius',rValIn, self.design.unitsManager.defaultLengthUnits, '')
+            rParameter = userParams.add('dbRadius',rValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
         if not userParams.itemByName('dbOffset'):
             oValIn = adsk.core.ValueInput.createByString('dbRadius / sqrt(2)')
-            oParameter = userParams.add('dbOffset', oValIn, self.design.unitsManager.defaultLengthUnits, '')
+            oParameter = userParams.add('dbOffset', oValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
 
         radius = userParams.itemByName('dbRadius').value
         offset = adsk.core.ValueInput.createByString('dbOffset')
