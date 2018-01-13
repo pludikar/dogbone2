@@ -15,7 +15,6 @@ Select the face you want the dogbones to drop from. Specify a tool diameter and 
 The add-in will then create a dogbone with diameter equal to the tool diameter plus
 twice the offset (as the offset is applied to the radius) at each selected edge.
 
-to do:
 To do:
 1. Improve the usability and speed
    Selection of multiple faces and selecting/deselecting target edges (intention is to use attributes to relate
