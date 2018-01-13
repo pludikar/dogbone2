@@ -107,32 +107,6 @@ class DogboneCommand(object):
         args.command.selectionEvent.add(self.handlers.make_handler(adsk.core.SelectionEventHandler, self.onFaceSelect))
         args.command.validateInputs.add(
             self.handlers.make_handler(adsk.core.ValidateInputsEventHandler, self.onValidate))
-#==============================================================================
-#         args.command.inputChanged.add(
-#             self.handlers.make_handler(adsk.core.InputChangedEventHandler, self.onChangeInput))
-#             
-#             
-#     def onChangeInput(self, args:adsk.core.InputChangedEventArgs):
-#         inputs = {inp.id: inp for inp in args.inputs}
-#         activeInput = args.input
-#         if activeInput.id != 'select':
-#             return
-#         
-#         edges = []
-# #        if not self.faces:
-# #            self.faces = {}
-#         for i in range(inputs['select'].selectionCount):
-#             entity = inputs['select'].selection(i).entity
-#             if entity.objectType == adsk.fusion.BRepEdge.classType():
-#                 edges.append(entity)
-#             elif entity.objectType == adsk.fusion.BRepFace.classType():
-#                 face = entity
-#         try:
-#             self.faces.append([face, edges])
-#         except:
-#             self.faces = []
-#             self.faces.append([face, edges])
-#==============================================================================
 
 
     def parseInputs(self, inputs):
