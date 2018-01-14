@@ -107,6 +107,13 @@ def getFaceNormal(face):
 def messageBox(*args):
     adsk.core.Application.get().userInterface.messageBox(*args)
 
+def clearAttribs(name):
+    app = adsk.core.Application.get()
+    attribs = app.activeProduct.findAttributes("dogBoneGroup", name)
+    for attrib in attribs:
+        attrib.deleteMe()
+        
+
 def clearFaceAttribs(design):
     attribs = design.findAttributes("dogBoneGroup","faceRef")
     if not attribs:

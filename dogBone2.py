@@ -30,6 +30,14 @@ import uuid
 import time
 from . import utils as dbutils
 
+#constants - to keep attribute group and names consistent
+DOGBONEGROUP = 'dogBoneGroup'
+FACE_ID = 'faceID'
+REV_ID = 'revId'
+ID = 'id'
+
+faceAssociations = {}
+
 
 class DogboneCommand(object):
     COMMAND_ID = "dogboneBtn"
@@ -107,8 +115,7 @@ class DogboneCommand(object):
         args.command.selectionEvent.add(self.handlers.make_handler(adsk.core.SelectionEventHandler, self.onFaceSelect))
         args.command.validateInputs.add(
             self.handlers.make_handler(adsk.core.ValidateInputsEventHandler, self.onValidate))
-
-
+            
     def parseInputs(self, inputs):
         inputs = {inp.id: inp for inp in inputs}
 
@@ -168,10 +175,30 @@ class DogboneCommand(object):
             return
         
         eventArgs.activeInput.addSelectionFilter('LinearEdges')
-
         face = adsk.fusion.BRepFace.cast(selectedEntity)
         faceNormal = dbutils.getFaceNormal(face)
         
+        if not face.attributes.itemByName(DOGBONEGROUP, ID):
+            faceId = uuid.uuid1()
+            face.attributes.add(DOGBONEGROUP, ID, str(faceId))
+            
+        faceId = face.attributes.itemByName(DOGBONEGROUP, ID).value
+        
+        if not face.body.attributes.itemByName(DOGBONEGROUP, REV_ID):
+            face.body.attributes.add(DOGBONEGROUP, REV_ID, str(face.body.revisionId))
+
+        if face.body.revisionId != face.body.attributes.itemByName(DOGBONEGROUP, REV_ID).value:
+#            if the body revisionID has changed - we can't be sure the attributes are correct 
+#            - so we have to start over - once design is stable, we might need to improve this 
+#               if the performance is poor
+            return
+        faceEdges = faceAssociations.get(face.attributes.itemByName(DOGBONEGROUP, ID).value, adsk.core.ObjectCollection.create())
+            
+        if faceEdges.count >0:
+        # if faceAttributes exist then only need to get the associated edges
+            eventArgs.additionalEntities = faceEdges
+            return
+            
         for edge in face.body.edges:
             if edge.isDegenerate:
                 continue
@@ -195,8 +222,10 @@ class DogboneCommand(object):
                 if dbutils.getAngleBetweenFaces(edge) > math.pi:
                     continue
                 faceEdges.add(edge)
+                edge.attributes.add(DOGBONEGROUP,faceId, '')
             except:
                 dbutils.messageBox('Failed at edge:\n{}'.format(traceback.format_exc()))
+        faceAssociations[faceId] = faceEdges
         eventArgs.additionalEntities = faceEdges
     
 
