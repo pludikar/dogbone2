@@ -187,11 +187,11 @@ class DogboneCommand(object):
         if not face.body.attributes.itemByName(DOGBONEGROUP, REV_ID):
             face.body.attributes.add(DOGBONEGROUP, REV_ID, str(face.body.revisionId))
 
-        if face.body.revisionId != face.body.attributes.itemByName(DOGBONEGROUP, REV_ID).value:
+#        if face.body.revisionId != face.body.attributes.itemByName(DOGBONEGROUP, REV_ID).value:
 #            if the body revisionID has changed - we can't be sure the attributes are correct 
 #            - so we have to start over - once design is stable, we might need to improve this 
 #               if the performance is poor
-            return
+#            return
         faceEdges = faceAssociations.get(face.attributes.itemByName(DOGBONEGROUP, ID).value, adsk.core.ObjectCollection.create())
             
         if faceEdges.count >0:
@@ -268,6 +268,7 @@ class DogboneCommand(object):
             if face.assemblyContext:
                comp = face.assemblyContext.sourceComponent
                name = face.assemblyContext.name.split(':')[0]+':1'  #occurrence is supposed to take care of positioning
+#               name = name.replace('(Mirror)',"")
                occ = self.rootComp.occurrences.itemByName(name)  # this is a work around - use 1st occurrence as proxy
                face = face.nativeObject.createForAssemblyContext(occ)
 
