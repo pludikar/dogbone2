@@ -6,7 +6,7 @@
 # I've completely revamped the dogbone add-in by Casey Rogers and Patrick Rainsberry and David Liu
 # some of the original utilities have remained, but mostly everything else has changed.
 
-# The original add-in was based on creating points and extruding - I found using sketches and extrusion to be very heavy 
+# The original add-in was based on creating sketch points and extruding - I found using sketches and extrusion to be very heavy 
 # on processing resources, so this version has been designed to create dogbones directly by using a hole tool. So far the
 # the performance of this approach is day and night compared to the original version. 
 
