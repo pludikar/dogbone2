@@ -36,11 +36,15 @@ FACE_ID = 'faceID'
 REV_ID = 'revId'
 ID = 'id'
 
-faceAssociations = {}
 
 
 class DogboneCommand(object):
     COMMAND_ID = "dogboneBtn"
+    
+    faceAssociations = {}
+    selections = adsk.core.ObjectCollection.create()
+    selectionMade = None
+
 
     def __init__(self):
         self.app = adsk.core.Application.get()
@@ -110,11 +114,32 @@ class DogboneCommand(object):
 
         inputs.addBoolValueInput("benchmark", "Benchmark running time", True, "", self.benchmark)
 
+        cmd = adsk.core.Command.cast(args.command)
         # Add handlers to this command.
-        args.command.execute.add(self.handlers.make_handler(adsk.core.CommandEventHandler, self.onExecute))
-        args.command.selectionEvent.add(self.handlers.make_handler(adsk.core.SelectionEventHandler, self.onFaceSelect))
-        args.command.validateInputs.add(
+        cmd.execute.add(self.handlers.make_handler(adsk.core.CommandEventHandler, self.onExecute))
+        cmd.selectionEvent.add(self.handlers.make_handler(adsk.core.SelectionEventHandler, self.onFaceSelect))
+        cmd.validateInputs.add(
             self.handlers.make_handler(adsk.core.ValidateInputsEventHandler, self.onValidate))
+        cmd.inputChanged.add(
+            self.handlers.make_handler(adsk.core.InputChangedEventHandler, self.onChange))
+
+    def onChange(self, args:adsk.core.InputChangedEventArgs):
+        
+        changedInput = adsk.core.CommandInput.cast(args.input)
+        if changedInput.id != 'select':
+            return
+        if changedInput.selectionCount != 0:
+            self.selectionMade = True
+        else:
+            self.selectionMade = None
+        for i in range(changedInput.selectionCount):
+            self.selections.add(changedInput.selection(i).entity)
+            
+    def refreshSelections(self, commandInput):
+        cmdIn = adsk.core.SelectionCommandInput.cast(commandInput)
+        cmdIn.clearSelection
+        for selection in self.selections:
+            cmdIn.addSelection(selection)
             
     def parseInputs(self, inputs):
         inputs = {inp.id: inp for inp in inputs}
@@ -166,6 +191,9 @@ class DogboneCommand(object):
             return
         selected = eventArgs.selection
         selectedEntity = selected.entity
+        selCommandIn = eventArgs.firingEvent.sender.commandInputs.itemById('select')
+        if selCommandIn.selectionCount ==0 and self.selectionMade:
+            self.refreshSelections(selCommandIn)
         faceEdges = adsk.core.ObjectCollection.create()
 
         if selectedEntity.objectType != adsk.fusion.BRepFace.classType():
@@ -177,7 +205,7 @@ class DogboneCommand(object):
         eventArgs.activeInput.addSelectionFilter('LinearEdges')
         face = adsk.fusion.BRepFace.cast(selectedEntity)
         faceNormal = dbutils.getFaceNormal(face)
-        
+        face.attributes.itemByName(DOGBONEGROUP, ID)
         if not face.attributes.itemByName(DOGBONEGROUP, ID):
             faceId = uuid.uuid1()
             face.attributes.add(DOGBONEGROUP, ID, str(faceId))
@@ -192,7 +220,7 @@ class DogboneCommand(object):
 #            - so we have to start over - once design is stable, we might need to improve this 
 #               if the performance is poor
 #            return
-        faceEdges = faceAssociations.get(face.attributes.itemByName(DOGBONEGROUP, ID).value, adsk.core.ObjectCollection.create())
+        faceEdges = self.faceAssociations.get(face.attributes.itemByName(DOGBONEGROUP, ID).value, adsk.core.ObjectCollection.create())
             
         if faceEdges.count >0:
         # if faceAttributes exist then only need to get the associated edges
@@ -225,7 +253,7 @@ class DogboneCommand(object):
                 edge.attributes.add(DOGBONEGROUP,faceId, '')
             except:
                 dbutils.messageBox('Failed at edge:\n{}'.format(traceback.format_exc()))
-        faceAssociations[faceId] = faceEdges
+        self.faceAssociations[faceId] = faceEdges
         eventArgs.additionalEntities = faceEdges
     
 
