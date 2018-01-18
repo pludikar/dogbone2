@@ -284,6 +284,8 @@ class DogboneCommand(object):
 #               name = face.assemblyContext.name.split(':')[0]+':1'  #occurrence is supposed to take care of positioning
                occ = self.rootComp.allOccurrencesByComponent(comp).itemByName(comp.name+':1')  # this is a work around - use 1st occurrence as proxy
                face = face.nativeObject.createForAssemblyContext(occ)
+               lightState = occ.isLightBulbOn
+               occ.isLightBulbOn = True
 
             else:
                comp = self.rootComp
@@ -340,6 +342,7 @@ class DogboneCommand(object):
                 except:
                     dbutils.messageBox('Failed at create hole add:\n{}'.format(traceback.format_exc()))
                     continue
+            occ.isLightBulbOn = lightState
             endTlMarker = self.design.timeline.markerPosition-1
             if endTlMarker - startTlMarker >0:
                 timelineGroup = self.design.timeline.timelineGroups.add(startTlMarker,endTlMarker)
