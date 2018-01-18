@@ -128,12 +128,16 @@ class DogboneCommand(object):
         changedInput = adsk.core.CommandInput.cast(args.input)
         if changedInput.id != 'select':
             return
-        if changedInput.selectionCount != 0:
-            self.selectionMade = True
-        else:
-            self.selectionMade = None
-        for i in range(changedInput.selectionCount):
-            self.selections.add(changedInput.selection(i).entity)
+            
+        #placeholder for future
+#==============================================================================
+#         if changedInput.selectionCount != 0:
+#             self.selectionMade = True
+#         else:
+#             self.selectionMade = None
+#         for i in range(changedInput.selectionCount):
+#             self.selections.add(changedInput.selection(i).entity)
+#==============================================================================
             
     def refreshSelections(self, commandInput):
         cmdIn = adsk.core.SelectionCommandInput.cast(commandInput)
@@ -191,9 +195,9 @@ class DogboneCommand(object):
             return
         selected = eventArgs.selection
         selectedEntity = selected.entity
-        selCommandIn = eventArgs.firingEvent.sender.commandInputs.itemById('select')
-        if selCommandIn.selectionCount ==0 and self.selectionMade:
-            self.refreshSelections(selCommandIn)
+#        selCommandIn = eventArgs.firingEvent.sender.commandInputs.itemById('select')
+#        if selCommandIn.selectionCount ==0 and self.selectionMade:
+#            self.refreshSelections(selCommandIn)
         faceEdges = adsk.core.ObjectCollection.create()
 
         if selectedEntity.objectType != adsk.fusion.BRepFace.classType():
@@ -205,22 +209,28 @@ class DogboneCommand(object):
         eventArgs.activeInput.addSelectionFilter('LinearEdges')
         face = adsk.fusion.BRepFace.cast(selectedEntity)
         faceNormal = dbutils.getFaceNormal(face)
-        face.attributes.itemByName(DOGBONEGROUP, ID)
-        if not face.attributes.itemByName(DOGBONEGROUP, ID):
-            faceId = uuid.uuid1()
-            face.attributes.add(DOGBONEGROUP, ID, str(faceId))
+#==============================================================================
+#         face.attributes.itemByName(DOGBONEGROUP, ID)
+#         if not face.attributes.itemByName(DOGBONEGROUP, ID):
+#             faceId = uuid.uuid1()
+#             face.attributes.add(DOGBONEGROUP, ID, str(faceId))
+#==============================================================================
             
-        faceId = face.attributes.itemByName(DOGBONEGROUP, ID).value
+        faceId = face.tempId
         
-        if not face.body.attributes.itemByName(DOGBONEGROUP, REV_ID):
-            face.body.attributes.add(DOGBONEGROUP, REV_ID, str(face.body.revisionId))
+#==============================================================================
+#         if not face.body.attributes.itemByName(DOGBONEGROUP, REV_ID):
+#             face.body.attributes.add(DOGBONEGROUP, REV_ID, str(face.body.revisionId))
+#==============================================================================
 
-#        if face.body.revisionId != face.body.attributes.itemByName(DOGBONEGROUP, REV_ID).value:
-#            if the body revisionID has changed - we can't be sure the attributes are correct 
-#            - so we have to start over - once design is stable, we might need to improve this 
-#               if the performance is poor
-#            return
-        faceEdges = self.faceAssociations.get(face.attributes.itemByName(DOGBONEGROUP, ID).value, adsk.core.ObjectCollection.create())
+#==============================================================================
+#         if face.body.revisionId != face.body.attributes.itemByName(DOGBONEGROUP, REV_ID).value:
+#             if the body revisionID has changed - we can't be sure the attributes are correct 
+#             - so we have to start over - once design is stable, we might need to improve this 
+#                if the performance is poor
+#             return
+#==============================================================================
+        faceEdges = self.faceAssociations.get(face.tempId, adsk.core.ObjectCollection.create())
             
         if faceEdges.count >0:
         # if faceAttributes exist then only need to get the associated edges
@@ -250,7 +260,7 @@ class DogboneCommand(object):
                 if dbutils.getAngleBetweenFaces(edge) > math.pi:
                     continue
                 faceEdges.add(edge)
-                edge.attributes.add(DOGBONEGROUP,faceId, '')
+#                edge.attributes.add(DOGBONEGROUP,faceId, '')
             except:
                 dbutils.messageBox('Failed at edge:\n{}'.format(traceback.format_exc()))
         self.faceAssociations[faceId] = faceEdges
