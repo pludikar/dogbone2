@@ -280,9 +280,9 @@ class DogboneCommand(object):
 #        
 #        This work around is limited to relatively simple models!!!
             if face.assemblyContext:
-               comp = face.assemblyContext.sourceComponent
-               name = face.assemblyContext.name.split(':')[0]+':1'  #occurrence is supposed to take care of positioning
-               occ = self.rootComp.occurrences.itemByName(name)  # this is a work around - use 1st occurrence as proxy
+               comp = face.assemblyContext.component
+#               name = face.assemblyContext.name.split(':')[0]+':1'  #occurrence is supposed to take care of positioning
+               occ = self.rootComp.allOccurrencesByComponent(comp).item(0)  # this is a work around - use 1st occurrence as proxy
                face = face.nativeObject.createForAssemblyContext(occ)
 
             else:
