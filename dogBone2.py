@@ -130,15 +130,7 @@ class DogboneCommand(object):
             return
             
         #placeholder for future
-#==============================================================================
-#         if changedInput.selectionCount != 0:
-#             self.selectionMade = True
-#         else:
-#             self.selectionMade = None
-#         for i in range(changedInput.selectionCount):
-#             self.selections.add(changedInput.selection(i).entity)
-#==============================================================================
-            
+           
     def refreshSelections(self, commandInput):
         cmdIn = adsk.core.SelectionCommandInput.cast(commandInput)
         cmdIn.clearSelection
@@ -195,9 +187,6 @@ class DogboneCommand(object):
             return
         selected = eventArgs.selection
         selectedEntity = selected.entity
-#        selCommandIn = eventArgs.firingEvent.sender.commandInputs.itemById('select')
-#        if selCommandIn.selectionCount ==0 and self.selectionMade:
-#            self.refreshSelections(selCommandIn)
         faceEdges = adsk.core.ObjectCollection.create()
 
         if selectedEntity.objectType != adsk.fusion.BRepFace.classType():
@@ -209,31 +198,14 @@ class DogboneCommand(object):
         eventArgs.activeInput.addSelectionFilter('LinearEdges')
         face = adsk.fusion.BRepFace.cast(selectedEntity)
         faceNormal = dbutils.getFaceNormal(face)
-#==============================================================================
-#         face.attributes.itemByName(DOGBONEGROUP, ID)
-#         if not face.attributes.itemByName(DOGBONEGROUP, ID):
-#             faceId = uuid.uuid1()
-#             face.attributes.add(DOGBONEGROUP, ID, str(faceId))
-#==============================================================================
             
         faceId = face.tempId
         
-#==============================================================================
-#         if not face.body.attributes.itemByName(DOGBONEGROUP, REV_ID):
-#             face.body.attributes.add(DOGBONEGROUP, REV_ID, str(face.body.revisionId))
-#==============================================================================
-
-#==============================================================================
-#         if face.body.revisionId != face.body.attributes.itemByName(DOGBONEGROUP, REV_ID).value:
-#             if the body revisionID has changed - we can't be sure the attributes are correct 
-#             - so we have to start over - once design is stable, we might need to improve this 
-#                if the performance is poor
-#             return
-#==============================================================================
         faceEdges = self.faceAssociations.get(face.tempId, adsk.core.ObjectCollection.create())
             
         if faceEdges.count >0:
         # if faceAttributes exist then only need to get the associated edges
+        # this eliminates the need to do costly recalculation of edges each time mouse is moved
             eventArgs.additionalEntities = faceEdges
             return
             
@@ -260,7 +232,6 @@ class DogboneCommand(object):
                 if dbutils.getAngleBetweenFaces(edge) > math.pi:
                     continue
                 faceEdges.add(edge)
-#                edge.attributes.add(DOGBONEGROUP,faceId, '')
             except:
                 dbutils.messageBox('Failed at edge:\n{}'.format(traceback.format_exc()))
         self.faceAssociations[faceId] = faceEdges
@@ -302,11 +273,13 @@ class DogboneCommand(object):
         startTlMarker = self.design.timeline.markerPosition
 
         for face in self.faces:
+#            Holes created in Occurrences don't appear to work correctly 
+#            components created by mirroring will fail!! - they use the coordinate space of the original, but I haven't 
+#            figured out how to work around this.
 #            face in an assembly context needs to be treated differently to a face that is at rootComponent level
             if face.assemblyContext:
                comp = face.assemblyContext.sourceComponent
                name = face.assemblyContext.name.split(':')[0]+':1'  #occurrence is supposed to take care of positioning
-#               name = name.replace('(Mirror)',"")
                occ = self.rootComp.occurrences.itemByName(name)  # this is a work around - use 1st occurrence as proxy
                face = face.nativeObject.createForAssemblyContext(occ)
 
@@ -345,7 +318,8 @@ class DogboneCommand(object):
                 for edgeFace in edge.faces:
                     dirVect = dbutils.getFaceNormal(edgeFace).copy()
                     dirVect.normalize()
-                    dirVect.scaleBy(radius/math.sqrt(2))
+                    dirVect.scaleBy(radius/math.sqrt(2))  #ideally radius should be linked to parameters, 
+                                                          # but hole start point still is the right quadrant
                     initGuess.translateBy(dirVect)
 #                sketch.sketchPoints.add(initGuess)        #for debugging 
 
