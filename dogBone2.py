@@ -277,6 +277,8 @@ class DogboneCommand(object):
 #            components created by mirroring will fail!! - they use the coordinate space of the original, but I haven't 
 #            figured out how to work around this.
 #            face in an assembly context needs to be treated differently to a face that is at rootComponent level
+#        
+#        This work around is limited to relatively simple models!!!
             if face.assemblyContext:
                comp = face.assemblyContext.sourceComponent
                name = face.assemblyContext.name.split(':')[0]+':1'  #occurrence is supposed to take care of positioning
