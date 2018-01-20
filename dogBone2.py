@@ -282,8 +282,8 @@ class DogboneCommand(object):
             if face.assemblyContext:
                comp = face.assemblyContext.component
 #               name = face.assemblyContext.name.split(':')[0]+':1'  #occurrence is supposed to take care of positioning
-               occ = self.rootComp.allOccurrencesByComponent(comp).itemByName(comp.name+':1')  # this is a work around - use 1st occurrence as proxy
-               face = face.nativeObject.createForAssemblyContext(occ)
+               occ = face.assemblyContext  # this is a work around - use 1st occurrence as proxy
+#               face = face.nativeObject.createForAssemblyContext(occ)
                lightState = occ.isLightBulbOn
                occ.isLightBulbOn = True
 
@@ -291,7 +291,8 @@ class DogboneCommand(object):
                comp = self.rootComp
                occ = None
 
-#            sketch = comp.sketches.add(comp.xYConstructionPlane, occ)  #used for fault finding
+            sketch = comp.sketches.add(comp.xYConstructionPlane, occ)  #used for fault finding
+            sketch = sketch.createForAssemblyContext(occ)
             holes = adsk.fusion.HoleFeatures.cast(comp.features.holeFeatures)
                 
             dbutils.clearFaceAttribs(self.design)
@@ -325,7 +326,7 @@ class DogboneCommand(object):
                     dirVect.scaleBy(radius/math.sqrt(2))  #ideally radius should be linked to parameters, 
                                                           # but hole start point still is the right quadrant
                     initGuess.translateBy(dirVect)
-#                sketch.sketchPoints.add(initGuess)        #for debugging 
+                sketch.sketchPoints.add(initGuess)        #for debugging 
 
                 #create hole attributes
                 holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByString('dbToolDia'))
