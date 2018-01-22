@@ -56,6 +56,7 @@ class DogboneCommand(object):
         self.circVal = None
         self.edges = []
         self.benchmark = False
+        self.errorCount = 0
 
         self.handlers = dbutils.HandlerHelper()
 
@@ -252,6 +253,7 @@ class DogboneCommand(object):
 
     # The main algorithm
     def createConsolidatedDogbones(self):
+        self.errorCount = 0
         if not self.design:
             raise RuntimeError('No active Fusion design')
         holeInput = adsk.fusion.HoleFeatureInput.cast(None)
@@ -282,10 +284,10 @@ class DogboneCommand(object):
             if face.assemblyContext:
                comp = face.assemblyContext.component
 #               name = face.assemblyContext.name.split(':')[0]+':1'  #occurrence is supposed to take care of positioning
-               occ = self.rootComp.allOccurrencesByComponent(comp).itemByName(comp.name+':1')  # this is a work around - use 1st occurrence as proxy
-               face = face.nativeObject.createForAssemblyContext(occ)
-               lightState = occ.isLightBulbOn
-               occ.isLightBulbOn = True
+               occ = face.assemblyContext  # this is a work around - use 1st occurrence as proxy
+               face = face.nativeObject
+#               lightState = occ.isLightBulbOn
+#               occ.isLightBulbOn = True
 
             else:
                comp = self.rootComp
@@ -305,8 +307,8 @@ class DogboneCommand(object):
                     face = dbutils.refreshFace(self.design)
                 if edge.assemblyContext:
                     #put face and edge into right context (1st component) - create proxies
-                    edge = edge.nativeObject.createForAssemblyContext(occ)
-                    face = face.nativeObject.createForAssemblyContext(occ)
+                    edge = edge.nativeObject
+#                    face = face.nativeObject
                     
                 startVertex = dbutils.getVertexAtFace(face, edge)
                 if not dbutils.isEdgeAssociatedWithFace(face, edge):
@@ -331,22 +333,26 @@ class DogboneCommand(object):
                 holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByString('dbToolDia'))
                 holeInput.tipAngle = adsk.core.ValueInput.createByString('180 deg')
                 holeInput.isDefaultDirection = True
-                holeInput.creationOccurrence = face.assemblyContext  #this parameter doesn't appear to work!!
+#                holeInput.creationOccurrence = face.assemblyContext  #this parameter doesn't appear to work!!
                 holeInput.participantBodies = [face.body]
                 holeInput.setPositionByPlaneAndOffsets(face, initGuess, edge1, offset, edge2, offset)
                 holeInput.setOneSideToExtent(extentToEntity,False)
                 try: 
                     hole = holes.add(holeInput)
+                    adsk.doEvents()
                     hole.name = 'dogbone'
 
                 except:
-                    dbutils.messageBox('Failed at create hole add:\n{}'.format(traceback.format_exc()))
+                    self.errorCount += 1
                     continue
-            occ.isLightBulbOn = lightState
+#            occ.isLightBulbOn = lightState
             endTlMarker = self.design.timeline.markerPosition-1
             if endTlMarker - startTlMarker >0:
                 timelineGroup = self.design.timeline.timelineGroups.add(startTlMarker,endTlMarker)
                 timelineGroup.name = 'dogbone'
+            adsk.doEvents()
+            if self.errorCount >0:
+                dbutils.messageBox('reported errors:{}'.format(self.errorCount))
                 
                 
 
