@@ -42,9 +42,6 @@ class DogboneCommand(object):
     COMMAND_ID = "dogboneBtn"
     
     faceAssociations = {}
-    selections = adsk.core.ObjectCollection.create()
-    selectionMade = None
-
 
     def __init__(self):
         self.app = adsk.core.Application.get()
@@ -92,6 +89,10 @@ class DogboneCommand(object):
 
     def onCreate(self, args:adsk.core.CommandCreatedEventArgs):
         inputs = adsk.core.CommandCreatedEventArgs.cast(args)
+        self.edges = []
+        self.faces = []
+        self.faceAssociations = {}
+        self.errorCount = 0
         argsCmd = adsk.core.Command.cast(args)
 
         inputs = inputs.command.commandInputs
@@ -100,8 +101,17 @@ class DogboneCommand(object):
             'select', 'Face',
             'Select a face to apply dogbones to all internal corner edges')
 #        selInput0.addSelectionFilter('LinearEdges')
-        selInput0.addSelectionFilter('Faces')
+        selInput0.addSelectionFilter('PlanarFaces')
         selInput0.setSelectionLimits(1,0)
+        
+        selInput1 = inputs.addSelectionInput(
+            'edgeSelect', 'DogBone Edges',
+            'Select a face to apply dogbones to all internal corner edges')
+#        selInput0.addSelectionFilter('LinearEdges')
+        selInput1.addSelectionFilter('LinearEdges')
+        selInput1.setSelectionLimits(1,0)
+        selInput1.isVisible = False
+
 
         inp = inputs.addValueInput(
             'circDiameter', 'Tool Diameter', self.design.unitsManager.defaultLengthUnits,
@@ -127,8 +137,41 @@ class DogboneCommand(object):
     def onChange(self, args:adsk.core.InputChangedEventArgs):
         
         changedInput = adsk.core.CommandInput.cast(args.input)
-        if changedInput.id != 'select':
+        if changedInput.id != 'select' and changedInput.id != 'edgeSelect':
             return
+        if changedInput.id == 'select':
+            face = adsk.fusion.BRepFace.cast(changedInput.selection(0).entity)
+            changedInput.commandInputs.itemById('edgeSelect').isVisible = True            
+            
+            faceNormal = dbutils.getFaceNormal(face)
+                
+            for edge in face.body.edges:
+                if edge.isDegenerate:
+                    continue
+                try:
+                    if edge.geometry.curveType != adsk.core.Curve3DTypes.Line3DCurveType:
+                        continue
+                    vector = edge.startVertex.geometry.vectorTo(edge.endVertex.geometry)
+                    if vector.isPerpendicularTo(faceNormal):
+                        continue
+                    if edge.faces.item(0).geometry.objectType != adsk.core.Plane.classType():
+                        continue
+                    if edge.faces.item(1).geometry.objectType != adsk.core.Plane.classType():
+                        continue              
+                    if edge.startVertex not in face.vertices:
+                        if edge.endVertex not in face.vertices:
+                            continue
+                        else:
+                            vector = edge.endVertex.geometry.vectorTo(edge.startVertex.geometry)
+                    if vector.dotProduct(faceNormal) >= 0:
+                        continue
+                    if dbutils.getAngleBetweenFaces(edge) > math.pi:
+                        continue
+                    changedInput.commandInputs.itemById('edgeSelect').addSelection(edge)
+                except:
+                    dbutils.messageBox('Failed at edge:\n{}'.format(traceback.format_exc()))
+#            eventArgs.additionalEntities = faceEdges
+        
             
         #placeholder for future
            
@@ -150,11 +193,13 @@ class DogboneCommand(object):
         self.edges = []
         self.faces = []
         
-        for i in range(inputs['select'].selectionCount):
-            entity = inputs['select'].selection(i).entity
+        for i in range(inputs['edgeSelect'].selectionCount):
+            entity = inputs['edgeSelect'].selection(i).entity
             if entity.objectType == adsk.fusion.BRepEdge.classType():
                 self.edges.append(entity)
-            elif entity.objectType == adsk.fusion.BRepFace.classType():
+        for i in range(inputs['select'].selectionCount):
+            entity = inputs['select'].selection(i).entity
+            if entity.objectType == adsk.fusion.BRepFace.classType():
                 self.faces.append(entity)
 
 
@@ -188,55 +233,55 @@ class DogboneCommand(object):
             return
         selected = eventArgs.selection
         selectedEntity = selected.entity
-        faceEdges = adsk.core.ObjectCollection.create()
+#        faceEdges = adsk.core.ObjectCollection.create()
 
-        if selectedEntity.objectType != adsk.fusion.BRepFace.classType():
-            eventArgs.activeInput.clearSelectionFilter()
-            eventArgs.activeInput.addSelectionFilter('Faces')
-
-            return
-        
-        eventArgs.activeInput.addSelectionFilter('LinearEdges')
-        face = adsk.fusion.BRepFace.cast(selectedEntity)
-        faceNormal = dbutils.getFaceNormal(face)
-            
-        faceId = face.tempId
-        
-        faceEdges = self.faceAssociations.get(face.tempId, adsk.core.ObjectCollection.create())
-            
-        if faceEdges.count >0:
-        # if faceAttributes exist then only need to get the associated edges
-        # this eliminates the need to do costly recalculation of edges each time mouse is moved
-            eventArgs.additionalEntities = faceEdges
-            return
-            
-        for edge in face.body.edges:
-            if edge.isDegenerate:
-                continue
-            try:
-                if edge.geometry.curveType != adsk.core.Curve3DTypes.Line3DCurveType:
-                    continue
-                vector = edge.startVertex.geometry.vectorTo(edge.endVertex.geometry)
-                if vector.isPerpendicularTo(faceNormal):
-                    continue
-                if edge.faces.item(0).geometry.objectType != adsk.core.Plane.classType():
-                    continue
-                if edge.faces.item(1).geometry.objectType != adsk.core.Plane.classType():
-                    continue              
-                if edge.startVertex not in face.vertices:
-                    if edge.endVertex not in face.vertices:
-                        continue
-                    else:
-                        vector = edge.endVertex.geometry.vectorTo(edge.startVertex.geometry)
-                if vector.dotProduct(faceNormal) >= 0:
-                    continue
-                if dbutils.getAngleBetweenFaces(edge) > math.pi:
-                    continue
-                faceEdges.add(edge)
-            except:
-                dbutils.messageBox('Failed at edge:\n{}'.format(traceback.format_exc()))
-        self.faceAssociations[faceId] = faceEdges
-        eventArgs.additionalEntities = faceEdges
+#        if selectedEntity.objectType != adsk.fusion.BRepFace.classType():
+#            eventArgs.activeInput.clearSelectionFilter()
+#            eventArgs.activeInput.addSelectionFilter('Faces')
+#
+#            return
+#        
+#        eventArgs.activeInput.addSelectionFilter('LinearEdges')
+#        face = adsk.fusion.BRepFace.cast(selectedEntity)
+#        faceNormal = dbutils.getFaceNormal(face)
+#            
+#        faceId = face.tempId
+#        
+#        faceEdges = self.faceAssociations.get(face.tempId, adsk.core.ObjectCollection.create())
+#            
+#        if faceEdges.count >0:
+#        # if faceAttributes exist then only need to get the associated edges
+#        # this eliminates the need to do costly recalculation of edges each time mouse is moved
+#            eventArgs.additionalEntities = faceEdges
+#            return
+#            
+#        for edge in face.body.edges:
+#            if edge.isDegenerate:
+#                continue
+#            try:
+#                if edge.geometry.curveType != adsk.core.Curve3DTypes.Line3DCurveType:
+#                    continue
+#                vector = edge.startVertex.geometry.vectorTo(edge.endVertex.geometry)
+#                if vector.isPerpendicularTo(faceNormal):
+#                    continue
+#                if edge.faces.item(0).geometry.objectType != adsk.core.Plane.classType():
+#                    continue
+#                if edge.faces.item(1).geometry.objectType != adsk.core.Plane.classType():
+#                    continue              
+#                if edge.startVertex not in face.vertices:
+#                    if edge.endVertex not in face.vertices:
+#                        continue
+#                    else:
+#                        vector = edge.endVertex.geometry.vectorTo(edge.startVertex.geometry)
+#                if vector.dotProduct(faceNormal) >= 0:
+#                    continue
+#                if dbutils.getAngleBetweenFaces(edge) > math.pi:
+#                    continue
+#                faceEdges.add(edge)
+#            except:
+#                dbutils.messageBox('Failed at edge:\n{}'.format(traceback.format_exc()))
+#        self.faceAssociations[faceId] = faceEdges
+#        eventArgs.additionalEntities = faceEdges
     
 
     @property
