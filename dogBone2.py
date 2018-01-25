@@ -54,6 +54,7 @@ class DogboneCommand(object):
         self.edges = []
         self.benchmark = False
         self.errorCount = 0
+        self.faceSelections = adsk.core.ObjectCollection.create()
 
         self.handlers = dbutils.HandlerHelper()
 
@@ -93,9 +94,12 @@ class DogboneCommand(object):
         self.faces = []
         self.faceAssociations = {}
         self.errorCount = 0
+        self.faceSelections.clear()
+        self.selectedOccurrences = {}
+        self.selectedFaces = {}
         argsCmd = adsk.core.Command.cast(args)
 
-        inputs = inputs.command.commandInputs
+        inputs = adsk.core.CommandInputs.cast(inputs.command.commandInputs)
 
         selInput0 = inputs.addSelectionInput(
             'select', 'Face',
@@ -112,7 +116,7 @@ class DogboneCommand(object):
         selInput1.setSelectionLimits(1,0)
         selInput1.isVisible = False
 
-
+        
         inp = inputs.addValueInput(
             'circDiameter', 'Tool Diameter', self.design.unitsManager.defaultLengthUnits,
             adsk.core.ValueInput.createByString(self.circStr))
@@ -124,6 +128,8 @@ class DogboneCommand(object):
         inp.tooltip = "Additional increase to the radius of the dogbone."
 
         inputs.addBoolValueInput("benchmark", "Benchmark running time", True, "", self.benchmark)
+        
+        textBox = inputs.addTextBoxCommandInput('TextBox', '', '', 1, True)
 
         cmd = adsk.core.Command.cast(args.command)
         # Add handlers to this command.
@@ -140,8 +146,35 @@ class DogboneCommand(object):
         if changedInput.id != 'select' and changedInput.id != 'edgeSelect':
             return
         if changedInput.id == 'select':
-            face = adsk.fusion.BRepFace.cast(changedInput.selection(0).entity)
-            changedInput.commandInputs.itemById('edgeSelect').isVisible = True            
+            if len(self.selectedFaces) > changedInput.selectionCount:
+                
+                # a face has been removed
+                newFaceList = [face for face in self.selectedFaces] 
+                selectionList = [str(changedInput.selection(i).entity.tempId) +':'+ changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1] for i in range(changedInput.selectionCount)]
+                missingFace = [select for select in newFaceList if select not in selectionList][0]
+                edgeList = self.selectedFaces[missingFace][1]
+                changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
+                for edge in edgeList:
+                    self.ui.activeSelections.removeByEntity(edge)
+                changedInput.commandInputs.itemById('select').hasFocus = True
+                return
+             
+#             Face has been added - assume that the last selection entity is the one added
+            face = adsk.fusion.BRepFace.cast(changedInput.selection(changedInput.selectionCount -1).entity)
+            changedInput.commandInputs.itemById('edgeSelect').isVisible = True  
+            
+            changedEntity = changedInput.selection(changedInput.selectionCount-1).entity
+            if changedEntity.assemblyContext:
+                activeOccurrenceName = changedEntity.assemblyContext.name
+            else:
+                activeOccurrenceName = 'root'
+            
+            faceId = str(changedEntity.tempId) + ":" + changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]
+            faces = []
+            faces = self.selectedOccurrences.get(activeOccurrenceName, faces)
+            faces.append(faceId)
+            self.selectedOccurrences[activeOccurrenceName] = faces
+            self.selectedFaces[faceId] = [face, adsk.core.ObjectCollection.create()]
             
             faceNormal = dbutils.getFaceNormal(face)
                 
@@ -168,8 +201,17 @@ class DogboneCommand(object):
                     if dbutils.getAngleBetweenFaces(edge) > math.pi:
                         continue
                     changedInput.commandInputs.itemById('edgeSelect').addSelection(edge)
+                    self.selectedFaces[faceId][1].add(edge)
                 except:
                     dbutils.messageBox('Failed at edge:\n{}'.format(traceback.format_exc()))
+                    
+        if changedInput.id != 'edgeSelect':
+            return
+        if self.faceSelections.count > changedInput.selectionCount:
+                # a face has been removed
+#TODO: create algorithm to delete only those edges associated with the deleted face.
+                return
+      
 #            eventArgs.additionalEntities = faceEdges
         
             
@@ -229,8 +271,52 @@ class DogboneCommand(object):
         eventArgs = adsk.core.SelectionEventArgs.cast(args)
         # Check which selection input the event is firing for.
         activeIn = eventArgs.firingEvent.activeInput
-        if activeIn.id != 'select':
+        if activeIn.id != 'select' and activeIn.id != 'edgeSelect':
             return
+        if activeIn.id == 'select':
+            activeOccurrence = eventArgs.selection.entity.assemblyContext
+            if activeOccurrence.name not in self.selectedOccurrences:
+                eventArgs.isSelectable = True
+                return
+            faceId = str(eventArgs.selection.entity.tempId)+":"+eventArgs.selection.entity.assemblyContext.name.split(':')[-1]
+
+            textResult = activeIn.parentCommand.commandInputs.itemById('TextBox') #Debugging
+            textResult.text = 'faceId: ' + str(faceId)+':'+str(eventArgs.isSelectable) #Debugging
+
+            
+            primaryFaceId = self.selectedOccurrences[activeOccurrence.name]
+            primaryFace = self.selectedFaces[primaryFaceId[0]][0] #get actual BrepFace from its ID
+            primaryFaceNormal = dbutils.getFaceNormal(primaryFace)
+            if primaryFaceNormal.isParallelTo(dbutils.getFaceNormal(eventArgs.selection.entity)):
+                eventArgs.isSelectable = True
+#                textResult.text = 'faceId: ' + str(faceId)+':'+str(eventArgs.isSelectable)  #Debugging
+                return
+            eventArgs.isSelectable = False
+#            textResult.text = 'faceId: ' + str(faceId)+':'+str(eventArgs.isSelectable)   #Debugging
+#        selecting faces
+            return
+            
+        else:
+#            processing edges associated with face
+            selected = eventArgs.selection
+            currentEdge = adsk.fusion.BRepEdge.cast(selected.entity)
+            
+            activeOccurrence = eventArgs.selection.entity.assemblyContext
+            activeOccurrenceName = currentEdge.assemblyContext.name
+            
+            primaryFaceId = self.selectedOccurrences[activeOccurrence.name]
+            primaryFace = self.selectedFaces[primaryFaceId[0]][0] #get actual BrepFace from its ID
+            primaryFaceNormal = dbutils.getFaceNormal(primaryFace)
+            
+            edgeVector = currentEdge.startVertex.geometry.vectorTo(currentEdge.endVertex.geometry)
+            
+            if not edgeVector.isParallelTo(primaryFaceNormal):
+                eventArgs.isSelectable = False
+                return
+            eventArgs.isSelectable = True            
+            return
+            
+        
         selected = eventArgs.selection
         selectedEntity = selected.entity
 #        faceEdges = adsk.core.ObjectCollection.create()
@@ -384,6 +470,7 @@ class DogboneCommand(object):
                 holeInput.setOneSideToExtent(extentToEntity,False)
                 try: 
                     hole = holes.add(holeInput)
+                    hole.createForAssemblyContext(occ)
                     adsk.doEvents()
                     hole.name = 'dogbone'
 
