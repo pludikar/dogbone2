@@ -168,8 +168,13 @@ class DogboneCommand(object):
                 activeOccurrenceName = changedEntity.assemblyContext.name
             else:
                 activeOccurrenceName = 'root'
+                
+            if changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext:
+                changedEntityName = changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]
+            else:
+                changedEntityName = 'root'
             
-            faceId = str(changedEntity.tempId) + ":" + changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]
+            faceId = str(changedEntity.tempId) + ":" + changedEntityName
             faces = []
             faces = self.selectedOccurrences.get(activeOccurrenceName, faces)
             faces.append(faceId)
@@ -274,17 +279,28 @@ class DogboneCommand(object):
         if activeIn.id != 'select' and activeIn.id != 'edgeSelect':
             return
         if activeIn.id == 'select':
+
             activeOccurrence = eventArgs.selection.entity.assemblyContext
-            if activeOccurrence.name not in self.selectedOccurrences:
+            if eventArgs.selection.entity.assemblyContext:
+                activeOccurrenceName = activeOccurrence.name
+            else:
+                activeOccurrenceName = 'root' 
+            if activeOccurrenceName not in self.selectedOccurrences:
                 eventArgs.isSelectable = True
                 return
-            faceId = str(eventArgs.selection.entity.tempId)+":"+eventArgs.selection.entity.assemblyContext.name.split(':')[-1]
+                
+            if eventArgs.selection.entity.assemblyContext:
+                entityName = eventArgs.selection.entity.assemblyContext.name.split(':')[-1]
+            else:
+                entityName = 'root'
+
+            faceId = str(eventArgs.selection.entity.tempId)+":"+ entityName
 
             textResult = activeIn.parentCommand.commandInputs.itemById('TextBox') #Debugging
             textResult.text = 'faceId: ' + str(faceId)+':'+str(eventArgs.isSelectable) #Debugging
 
             
-            primaryFaceId = self.selectedOccurrences[activeOccurrence.name]
+            primaryFaceId = self.selectedOccurrences[activeOccurrenceName]
             primaryFace = self.selectedFaces[primaryFaceId[0]][0] #get actual BrepFace from its ID
             primaryFaceNormal = dbutils.getFaceNormal(primaryFace)
             if primaryFaceNormal.isParallelTo(dbutils.getFaceNormal(eventArgs.selection.entity)):
@@ -302,9 +318,12 @@ class DogboneCommand(object):
             currentEdge = adsk.fusion.BRepEdge.cast(selected.entity)
             
             activeOccurrence = eventArgs.selection.entity.assemblyContext
-            activeOccurrenceName = currentEdge.assemblyContext.name
+            if eventArgs.selection.entity.assemblyContext:
+                activeOccurrenceName = activeOccurrence.name
+            else:
+                activeOccurrenceName = 'root' 
             
-            primaryFaceId = self.selectedOccurrences[activeOccurrence.name]
+            primaryFaceId = self.selectedOccurrences[activeOccurrenceName]
             primaryFace = self.selectedFaces[primaryFaceId[0]][0] #get actual BrepFace from its ID
             primaryFaceNormal = dbutils.getFaceNormal(primaryFace)
             
