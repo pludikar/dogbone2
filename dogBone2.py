@@ -281,12 +281,39 @@ class DogboneCommand(object):
         if activeIn.id == 'select':
 
             activeOccurrence = eventArgs.selection.entity.assemblyContext
+
             if eventArgs.selection.entity.assemblyContext:
                 activeOccurrenceName = activeOccurrence.name
+                activeComponent = activeOccurrence.component
             else:
-                activeOccurrenceName = 'root' 
+                activeOccurrenceName = 'root'
+
             if activeOccurrenceName not in self.selectedOccurrences:
-                eventArgs.isSelectable = True
+                if not activeOccurrence:
+                    eventArgs.isSelectable = True
+                    return
+                if not self.selectedOccurrences: #check if its a rootComponent
+                    eventArgs.isSelectable = True
+                    return
+                    
+                #at this point only need to check for duplicate component selection - Only one component allowed, to save on conflict checking
+                selectedFaceList = self.selectedOccurrences.values()
+                sel = []
+                for selFace in selectedFaceList:
+                    sel.append(selFace[0])
+                    selComp = self.selectedFaces[selFace[0]][0].assemblyContext.component
+                    if selComp != activeComponent:
+                        eventArgs.isSelectable = True
+                        return
+                eventArgs.isSelectable = False
+                        
+                    
+#                    selectedFaces = [face[0].assemblyContext.component for face in selectedFaceList]   
+                if activeOccurrence.component != eventArgs.selection.entity.assemblyContext.component:
+                    eventArgs.isSelectable = True
+                    return
+                
+                eventArgs.isSelectable = False
                 return
                 
             if eventArgs.selection.entity.assemblyContext:
