@@ -97,6 +97,7 @@ class DogboneCommand(object):
         self.faceSelections.clear()
         self.selectedOccurrences = {}
         self.selectedFaces = {}
+        self.selectedEdges = {}
         argsCmd = adsk.core.Command.cast(args)
 
         inputs = adsk.core.CommandInputs.cast(inputs.command.commandInputs)
@@ -146,14 +147,17 @@ class DogboneCommand(object):
         if changedInput.id != 'select' and changedInput.id != 'edgeSelect':
             return
         if changedInput.id == 'select':
+#            processing changes to face selections
             if len(self.selectedFaces) > changedInput.selectionCount:
                 
                 # a face has been removed
-                newFaceList = [face for face in self.selectedFaces] 
-                selectionList = [str(changedInput.selection(i).entity.tempId) +':'+ changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1] for i in range(changedInput.selectionCount)]
+                newFaceList = self.selectedFaces.keys()
+                faceOccurrenceId = changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]
+                selectionList = [str(changedInput.selection(i).entity.tempId) +':'+ faceOccurrenceId for i in range(changedInput.selectionCount)]
                 missingFace = [select for select in newFaceList if select not in selectionList][0]
                 edgeList = self.selectedFaces[missingFace][1]
                 changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
+                del self.selectedFaces[missingFace]
                 for edge in edgeList:
                     self.ui.activeSelections.removeByEntity(edge)
                 changedInput.commandInputs.itemById('select').hasFocus = True
@@ -182,7 +186,7 @@ class DogboneCommand(object):
             self.selectedFaces[faceId] = [face, adsk.core.ObjectCollection.create()]
             
             faceNormal = dbutils.getFaceNormal(face)
-                
+            
             for edge in face.body.edges:
                 if edge.isDegenerate:
                     continue
@@ -207,15 +211,56 @@ class DogboneCommand(object):
                         continue
                     changedInput.commandInputs.itemById('edgeSelect').addSelection(edge)
                     self.selectedFaces[faceId][1].add(edge)
+                    if edge.assemblyContext:
+                        activeEdgeName = edge.assemblyContext.name.split(':')[-1]
+                    else:
+                        activeEdgeName = 'root'
+
+                    edgeId = str(edge.tempId)+':'+ activeEdgeName
+                    self.selectedEdges[edgeId] = faceId
                 except:
                     dbutils.messageBox('Failed at edge:\n{}'.format(traceback.format_exc()))
-                    
+                 #end of processing faces
+        #proceesing changed edge selection            
         if changedInput.id != 'edgeSelect':
             return
-        if self.faceSelections.count > changedInput.selectionCount:
-                # a face has been removed
-#TODO: create algorithm to delete only those edges associated with the deleted face.
+        if len(self.selectedEdges) > changedInput.selectionCount:
+            # an edge has been removed
+        # only need to do something if there are no edges left associated with a face
+         #have to work backwards edge to faceId, then remove face from selection if associated edges == 0
+        # This is complicated because all selected edges are mixed together, you can't simply find the edges that are associated
+#            oldEdgeList = self.selectedEdges.keys()
+#            edgeOccurrenceId = changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]
+            try:
+                occurrenceNumber = ':' + changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]
+            except OverflowError:
+                changedInput.isVisible = False
+                changedInput.commandInputs.itemById('select').hasFocus = True
+                self.selectedFaces.clear
+                self.ui.activeSelections.clear()
                 return
+
+            calcEdgeId = lambda x: str(x.tempId) + occurrenceNumber
+            lookupEdge = lambda x: self.selectedEdges[x]
+#            newselectedList = [str(changedInput.selection(i).entity.tempId) +':'+ edgeOccurrenceId for i in range(changedInput.selectionCount)]
+            changedSelectionList = [changedInput.selection(i).entity for i in range(changedInput.selectionCount)]
+            changedEdgeIdList = map(calcEdgeId, changedSelectionList)
+            changedEdge_FaceIdList = map(lookupEdge, changedEdgeIdList)
+            consolidatedFaceList = set(changedEdge_FaceIdList)
+            try:
+                missingFace = [face for face in self.selectedFaces.keys() if face not in consolidatedFaceList]
+            except Exception as e:
+                changedInput.commandInputs.itemById('select').hasFocus = True
+                self.ui.activeSelections.removeByEntity(self.selectedFaces[0])
+                changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
+                return
+        if not len(missingFace):
+            return
+        changedInput.commandInputs.itemById('select').hasFocus = True
+        self.ui.activeSelections.removeByEntity(self.selectedFaces[missingFace[0]][0])
+        changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
+        del self.selectedFaces[missingFace[0]]    
+        return
       
 #            eventArgs.additionalEntities = faceEdges
         
