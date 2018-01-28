@@ -555,13 +555,13 @@ class DogboneCommand(object):
                 holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByString('dbToolDia'))
                 holeInput.tipAngle = adsk.core.ValueInput.createByString('180 deg')
                 holeInput.isDefaultDirection = True
-#                holeInput.creationOccurrence = face.assemblyContext  #this parameter doesn't appear to work!!
+                holeInput.creationOccurrence = face.assemblyContext  #this parameter doesn't appear to work!!
                 holeInput.participantBodies = [face.body]
                 holeInput.setPositionByPlaneAndOffsets(face, initGuess, edge1, offset, edge2, offset)
                 holeInput.setOneSideToExtent(extentToEntity,False)
                 try: 
                     hole = holes.add(holeInput)
-                    hole.createForAssemblyContext(occ)
+                    hole = hole.createForAssemblyContext(occ)
                     adsk.doEvents()
                     hole.name = 'dogbone'
 
