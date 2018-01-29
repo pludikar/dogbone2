@@ -152,12 +152,24 @@ class DogboneCommand(object):
                 
                 # a face has been removed
                 newFaceList = self.selectedFaces.keys()
-                faceOccurrenceId = changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]
+                try:
+                    faceOccurrenceId = changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]
+                except OverflowError:
+                    changedInput.commandInputs.itemById('select').hasFocus = True
+                    self.selectedFaces.clear()
+                    self.selectedEdges.clear()
+                    return
+                    
                 selectionList = [str(changedInput.selection(i).entity.tempId) +':'+ faceOccurrenceId for i in range(changedInput.selectionCount)]
                 missingFace = [select for select in newFaceList if select not in selectionList][0]
                 edgeList = self.selectedFaces[missingFace][1]
                 changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
+                if edgeList[0].assemblyContext:
+                    activeOccurrenceName = edgeList[0].assemblyContext.name
+                else:
+                    activeOccurrenceName = 'root'
                 del self.selectedFaces[missingFace]
+                del self.selectedOccurrences[activeOccurrenceName]
                 for edge in edgeList:
                     self.ui.activeSelections.removeByEntity(edge)
                 changedInput.commandInputs.itemById('select').hasFocus = True
@@ -254,8 +266,8 @@ class DogboneCommand(object):
                 self.ui.activeSelections.removeByEntity(self.selectedFaces[0])
                 changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
                 return
-        if not len(missingFace):
-            return
+            if not len(missingFace):
+                return
         changedInput.commandInputs.itemById('select').hasFocus = True
         self.ui.activeSelections.removeByEntity(self.selectedFaces[missingFace[0]][0])
         changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
@@ -346,7 +358,12 @@ class DogboneCommand(object):
                 sel = []
                 for selFace in selectedFaceList:
                     sel.append(selFace[0])
-                    selComp = self.selectedFaces[selFace[0]][0].assemblyContext.component
+                    try:
+                        selComp = self.selectedFaces[selFace[0]][0].assemblyContext.component
+                    except KeyError:
+                        return
+                    except AttributeError:
+                        return
                     if selComp != activeComponent:
                         eventArgs.isSelectable = True
                         return
@@ -372,8 +389,13 @@ class DogboneCommand(object):
             textResult.text = 'faceId: ' + str(faceId)+':'+str(eventArgs.isSelectable) #Debugging
 
             
-            primaryFaceId = self.selectedOccurrences[activeOccurrenceName]
-            primaryFace = self.selectedFaces[primaryFaceId[0]][0] #get actual BrepFace from its ID
+            try:            
+                primaryFaceId = self.selectedOccurrences[activeOccurrenceName]
+                primaryFace = self.selectedFaces[primaryFaceId[0]][0] #get actual BrepFace from its ID
+            except KeyError:
+                self.selectedFaces.clear()
+                self.selectedOccurrences.clear()
+                return
             primaryFaceNormal = dbutils.getFaceNormal(primaryFace)
             if primaryFaceNormal.isParallelTo(dbutils.getFaceNormal(eventArgs.selection.entity)):
                 eventArgs.isSelectable = True
@@ -395,8 +417,11 @@ class DogboneCommand(object):
             else:
                 activeOccurrenceName = 'root' 
             
-            primaryFaceId = self.selectedOccurrences[activeOccurrenceName]
-            primaryFace = self.selectedFaces[primaryFaceId[0]][0] #get actual BrepFace from its ID
+            try:            
+                primaryFaceId = self.selectedOccurrences[activeOccurrenceName]
+                primaryFace = self.selectedFaces[primaryFaceId[0]][0] #get actual BrepFace from its ID
+            except KeyError:
+                return
             primaryFaceNormal = dbutils.getFaceNormal(primaryFace)
             
             edgeVector = currentEdge.startVertex.geometry.vectorTo(currentEdge.endVertex.geometry)
@@ -494,7 +519,6 @@ class DogboneCommand(object):
 
         radius = userParams.itemByName('dbRadius').value
         offset = adsk.core.ValueInput.createByString('dbOffset')
-        startTlMarker = self.design.timeline.markerPosition
 
         for face in self.faces:
 #            Holes created in Occurrences don't appear to work correctly 
@@ -503,6 +527,8 @@ class DogboneCommand(object):
 #            face in an assembly context needs to be treated differently to a face that is at rootComponent level
 #        
 #        This work around is limited to relatively simple models!!!
+            startTlMarker = self.design.timeline.markerPosition
+
             if face.assemblyContext:
                comp = face.assemblyContext.component
 #               name = face.assemblyContext.name.split(':')[0]+':1'  #occurrence is supposed to take care of positioning
@@ -532,9 +558,12 @@ class DogboneCommand(object):
                     edge = edge.nativeObject
 #                    face = face.nativeObject
                     
-                startVertex = dbutils.getVertexAtFace(face, edge)
+                if not edge.isValid:
+                    continue
+                    
                 if not dbutils.isEdgeAssociatedWithFace(face, edge):
                     continue
+                startVertex = dbutils.getVertexAtFace(face, edge)
                 extentToEntity = dbutils.defineExtent(face, edge)
                 try:
                     (edge1, edge2) = dbutils.getCornerEdgesAtFace(face, edge)
@@ -574,8 +603,10 @@ class DogboneCommand(object):
                 timelineGroup = self.design.timeline.timelineGroups.add(startTlMarker,endTlMarker)
                 timelineGroup.name = 'dogbone'
             adsk.doEvents()
-            if self.errorCount >0:
-                dbutils.messageBox('reported errors:{}'.format(self.errorCount))
+            dbutils.clearFaceAttribs(self.design)
+        if self.errorCount >0:
+            dbutils.messageBox('reported errors:{}'.format(self.errorCount))
+
                 
                 
 
