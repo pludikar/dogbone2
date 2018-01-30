@@ -14,11 +14,6 @@
 # The add-in will then create a dogbone with diamater equal to the tool diameter plus
 # twice the offset (as the offset is applied to the radius) at each selected edge.
 
-# to do:
-# 1. Selection of multiple faces and selecting/deselecting target edges (intention is to use attributes to relate
-#    edges to faces, probably collected during onFaceSelect events - that way the prepopulated entities don't have to be 
-#    recalculated on every mouse move
-# 2. ... who knows
  
 from collections import defaultdict
 
@@ -141,13 +136,20 @@ class DogboneCommand(object):
         cmd.inputChanged.add(
             self.handlers.make_handler(adsk.core.InputChangedEventHandler, self.onChange))
 
+#==============================================================================
+#  routine to process any changed selections
+#  this is where selection and deselection management takes place
+#  also where eligible edges are determined
+#==============================================================================
     def onChange(self, args:adsk.core.InputChangedEventArgs):
         
         changedInput = adsk.core.CommandInput.cast(args.input)
         if changedInput.id != 'select' and changedInput.id != 'edgeSelect':
             return
         if changedInput.id == 'select':
+#==============================================================================
 #            processing changes to face selections
+#==============================================================================
             if len(self.selectedFaces) > changedInput.selectionCount:
                 
                 # a face has been removed
@@ -177,7 +179,9 @@ class DogboneCommand(object):
                 changedInput.commandInputs.itemById('select').hasFocus = True
                 return
              
+#==============================================================================
 #             Face has been added - assume that the last selection entity is the one added
+#==============================================================================
             face = adsk.fusion.BRepFace.cast(changedInput.selection(changedInput.selectionCount -1).entity)
             changedInput.commandInputs.itemById('edgeSelect').isVisible = True  
             
@@ -196,11 +200,13 @@ class DogboneCommand(object):
             faces = []
             faces = self.selectedOccurrences.get(activeOccurrenceName, faces)
             faces.append(faceId)
-            self.selectedOccurrences[activeOccurrenceName] = faces
-            self.selectedFaces[faceId] = [face, adsk.core.ObjectCollection.create()]
+            self.selectedOccurrences[activeOccurrenceName] = faces # adds a face to a list of faces associated with this occurrence
+            self.selectedFaces[faceId] = [face, adsk.core.ObjectCollection.create()]  # creates a collecton (of edges) associated with a faceId
             
             faceNormal = dbutils.getFaceNormal(face)
-            
+#==============================================================================
+#             this is where inside corner edges, dropping down from the face are processed
+#==============================================================================
             for edge in face.body.edges:
                 if edge.isDegenerate:
                     continue
@@ -235,11 +241,15 @@ class DogboneCommand(object):
                 except:
                     dbutils.messageBox('Failed at edge:\n{}'.format(traceback.format_exc()))
                  #end of processing faces
-        #proceesing changed edge selection            
+#==============================================================================
+#         Processing changed edge selection            
+#==============================================================================
         if changedInput.id != 'edgeSelect':
             return
         if len(self.selectedEdges) > changedInput.selectionCount:
-            # an edge has been removed
+#==============================================================================
+#             an edge has been removed
+#==============================================================================
         # only need to do something if there are no edges left associated with a face
          #have to work backwards edge to faceId, then remove face from selection if associated edges == 0
         # This is complicated because all selected edges are mixed together, you can't simply find the edges that are associated
@@ -276,17 +286,9 @@ class DogboneCommand(object):
         del self.selectedFaces[missingFace[0]]    
         return
       
-#            eventArgs.additionalEntities = faceEdges
-        
-            
-        #placeholder for future
-           
-    def refreshSelections(self, commandInput):
-        cmdIn = adsk.core.SelectionCommandInput.cast(commandInput)
-        cmdIn.clearSelection
-        for selection in self.selections:
-            cmdIn.addSelection(selection)
-            
+#==============================================================================
+# put the selections into variables that can be accessed by the main routine            
+#==============================================================================
     def parseInputs(self, inputs):
         inputs = {inp.id: inp for inp in inputs}
 
@@ -330,15 +332,22 @@ class DogboneCommand(object):
             elif input.id == 'circDiameter':
                 if input.value <= 0:
                     args.areInputsValid = False
-                    
+#==============================================================================
+#  Routine gets called with every mouse movement, if the commandInput is active                   
+#==============================================================================
     def onFaceSelect(self, args):
         eventArgs = adsk.core.SelectionEventArgs.cast(args)
         # Check which selection input the event is firing for.
         activeIn = eventArgs.firingEvent.activeInput
         if activeIn.id != 'select' and activeIn.id != 'edgeSelect':
-            return
-        if activeIn.id == 'select':
+            return # jump out if not dealing with either of the two selection boxes
 
+        if activeIn.id == 'select':
+#==============================================================================
+# processing activities when faces are being selected
+#        selection filter is limited to planar faces
+#        makes sure only valid occurrences and components are selectable
+#==============================================================================
             activeOccurrence = eventArgs.selection.entity.assemblyContext
 
             if eventArgs.selection.entity.assemblyContext:
@@ -347,32 +356,31 @@ class DogboneCommand(object):
             else:
                 activeOccurrenceName = 'root'
 
-            if activeOccurrenceName not in self.selectedOccurrences:
-                if not activeOccurrence:
+            if activeOccurrenceName not in self.selectedOccurrences:  #check if mouse is over a faces that is not already selected
+                if not activeOccurrence: # no more processing needed if we're over a face in the rootComponent
                     eventArgs.isSelectable = True
                     return
-                if not self.selectedOccurrences: #check if its a rootComponent
+                if not self.selectedOccurrences: #get out if the face selection list is empty
                     eventArgs.isSelectable = True
                     return
                     
-                #at this point only need to check for duplicate component selection - Only one component allowed, to save on conflict checking
-                selectedFaceList = self.selectedOccurrences.values()
+                # we got here because the face is not on the existing selected list, but could be the same component    
+                # at this point only need to check for duplicate component selection - Only one component allowed, to save on conflict checking
+                selectedFaceList = self.selectedOccurrences.values()  # creates a list of selected faces
                 sel = []
                 for selFace in selectedFaceList:
                     sel.append(selFace[0])
                     try:
                         selComp = self.selectedFaces[selFace[0]][0].assemblyContext.component
                     except KeyError:
-                        continue
+                        continue  #process next face because selFace is not in the selectedFaces list
                     except AttributeError:
-                        continue
+                        continue  #process next face because self.selectedFaces[selFace[0]][0] is null - usually caused by the all face selections being deleted
                     if selComp != activeComponent:
                         eventArgs.isSelectable = True
-                        return
+                        continue
                 eventArgs.isSelectable = False
                         
-                    
-#                    selectedFaces = [face[0].assemblyContext.component for face in selectedFaceList]   
                 if activeOccurrence.component != eventArgs.selection.entity.assemblyContext.component:
                     eventArgs.isSelectable = True
                     return
@@ -401,15 +409,15 @@ class DogboneCommand(object):
             primaryFaceNormal = dbutils.getFaceNormal(primaryFace)
             if primaryFaceNormal.isParallelTo(dbutils.getFaceNormal(eventArgs.selection.entity)):
                 eventArgs.isSelectable = True
-#                textResult.text = 'faceId: ' + str(faceId)+':'+str(eventArgs.isSelectable)  #Debugging
                 return
             eventArgs.isSelectable = False
-#            textResult.text = 'faceId: ' + str(faceId)+':'+str(eventArgs.isSelectable)   #Debugging
 #        selecting faces
             return
             
         else:
-#            processing edges associated with face
+#==============================================================================
+#             processing edges associated with face - edges selection has focus
+#==============================================================================
             selected = eventArgs.selection
             currentEdge = adsk.fusion.BRepEdge.cast(selected.entity)
             
@@ -423,11 +431,13 @@ class DogboneCommand(object):
                 primaryFaceId = self.selectedOccurrences[activeOccurrenceName]
                 primaryFace = self.selectedFaces[primaryFaceId[0]][0] #get actual BrepFace from its ID
             except KeyError:
-                return
+                return # means edge >primaryFaceId is not in the selection list - so we can escape 
             primaryFaceNormal = dbutils.getFaceNormal(primaryFace)
             
             edgeVector = currentEdge.startVertex.geometry.vectorTo(currentEdge.endVertex.geometry)
-            
+#==============================================================================
+#             make sure only edges perpendicular to the primary face can be selected
+#==============================================================================
             if not edgeVector.isParallelTo(primaryFaceNormal):
                 eventArgs.isSelectable = False
                 return
@@ -435,8 +445,8 @@ class DogboneCommand(object):
             return
             
         
-        selected = eventArgs.selection
-        selectedEntity = selected.entity
+#        selected = eventArgs.selection
+#        selectedEntity = selected.entity
 
     @property
     def design(self):
@@ -457,17 +467,20 @@ class DogboneCommand(object):
             raise RuntimeError('No active Fusion design')
         holeInput = adsk.fusion.HoleFeatureInput.cast(None)
         userParams = adsk.fusion.UserParameters.cast(self.design.userParameters)
-
+#set up parameters, so that changes can be easily made after dogbones have been inserted
         if not userParams.itemByName('dbToolDia'):
             dValIn = adsk.core.ValueInput.createByString(self.circStr)
             dParameter = userParams.add('dbToolDia',dValIn, self.design.unitsManager.defaultLengthUnits, '')
             dParameter.isFavorite = True
-        if not userParams.itemByName('dbRadius'):
-            rValIn = adsk.core.ValueInput.createByString('dbToolDia/2 + ' + self.offStr)
-            rParameter = userParams.add('dbRadius',rValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
         if not userParams.itemByName('dbOffset'):
+            rValIn = adsk.core.ValueInput.createByString(self.offStr)
+            rParameter = userParams.add('dbRadius',rValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
+        if not userParams.itemByName('dbRadius'):
+            rValIn = adsk.core.ValueInput.createByString('dbToolDia/2 + dbOffset')
+            rParameter = userParams.add('dbRadius',rValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
+        if not userParams.itemByName('dbHoleOffset'):
             oValIn = adsk.core.ValueInput.createByString('dbRadius / sqrt(2)')
-            oParameter = userParams.add('dbOffset', oValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
+            oParameter = userParams.add('dbHoleOffset', oValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
 
         radius = userParams.itemByName('dbRadius').value
         offset = adsk.core.ValueInput.createByString('dbOffset')
@@ -478,16 +491,12 @@ class DogboneCommand(object):
 #            figured out how to work around this.
 #            face in an assembly context needs to be treated differently to a face that is at rootComponent level
 #        
-#        This work around is limited to relatively simple models!!!
             startTlMarker = self.design.timeline.markerPosition
 
             if face.assemblyContext:
                comp = face.assemblyContext.component
-#               name = face.assemblyContext.name.split(':')[0]+':1'  #occurrence is supposed to take care of positioning
-               occ = face.assemblyContext  # this is a work around - use 1st occurrence as proxy
-               face = face.nativeObject
-#               lightState = occ.isLightBulbOn
-#               occ.isLightBulbOn = True
+               occ = face.assemblyContext  
+               face = face.nativeObject # this is a work around - calculate everything in the nativeObject space, then create an oppritate proxy
 
             else:
                comp = self.rootComp
@@ -503,18 +512,20 @@ class DogboneCommand(object):
             
             for edge in self.edges:
                 #face becomes invalid after a hole is added - use attributes to find the right face
+# TODO: faces that haven't been processed yet and that are affected by holes from another face will throw an error 
                 if not face.isValid:
                     face = dbutils.refreshFace(self.design)
                 if edge.assemblyContext:
                     #put face and edge into right context (1st component) - create proxies
                     edge = edge.nativeObject
-#                    face = face.nativeObject
                     
                 if not edge.isValid:
-                    continue
+                    continue # edges that have been processed already will not be valid any more - at the moment this is easier than removing the 
+#                    affected edge from self.edges after having been processed
                     
                 if not dbutils.isEdgeAssociatedWithFace(face, edge):
-                    continue
+                    continue  # skip if edge is not associated with the face currently being processed
+                
                 startVertex = dbutils.getVertexAtFace(face, edge)
                 extentToEntity = dbutils.defineExtent(face, edge)
                 try:
@@ -557,7 +568,7 @@ class DogboneCommand(object):
             adsk.doEvents()
             dbutils.clearFaceAttribs(self.design)
         if self.errorCount >0:
-            dbutils.messageBox('reported errors:{}'.format(self.errorCount))
+            dbutils.messageBox('Reported errors:{}\nYou may not need to do anything, \nbut check holes have been created'.format(self.errorCount))
 
                 
                 
