@@ -154,10 +154,12 @@ class DogboneCommand(object):
                 newFaceList = self.selectedFaces.keys()
                 try:
                     faceOccurrenceId = changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]
-                except OverflowError:
-                    changedInput.commandInputs.itemById('select').hasFocus = True
+                except OverflowError:  #Overflowed because all faces have been unselected - using the x/delete button
                     self.selectedFaces.clear()
                     self.selectedEdges.clear()
+                    changedInput.commandInputs.itemById('edgeSelect').clearSelection()
+                    changedInput.commandInputs.itemById('select').hasFocus = True
+                   
                     return
                     
                 selectionList = [str(changedInput.selection(i).entity.tempId) +':'+ faceOccurrenceId for i in range(changedInput.selectionCount)]
@@ -361,9 +363,9 @@ class DogboneCommand(object):
                     try:
                         selComp = self.selectedFaces[selFace[0]][0].assemblyContext.component
                     except KeyError:
-                        return
+                        continue
                     except AttributeError:
-                        return
+                        continue
                     if selComp != activeComponent:
                         eventArgs.isSelectable = True
                         return
@@ -435,56 +437,6 @@ class DogboneCommand(object):
         
         selected = eventArgs.selection
         selectedEntity = selected.entity
-#        faceEdges = adsk.core.ObjectCollection.create()
-
-#        if selectedEntity.objectType != adsk.fusion.BRepFace.classType():
-#            eventArgs.activeInput.clearSelectionFilter()
-#            eventArgs.activeInput.addSelectionFilter('Faces')
-#
-#            return
-#        
-#        eventArgs.activeInput.addSelectionFilter('LinearEdges')
-#        face = adsk.fusion.BRepFace.cast(selectedEntity)
-#        faceNormal = dbutils.getFaceNormal(face)
-#            
-#        faceId = face.tempId
-#        
-#        faceEdges = self.faceAssociations.get(face.tempId, adsk.core.ObjectCollection.create())
-#            
-#        if faceEdges.count >0:
-#        # if faceAttributes exist then only need to get the associated edges
-#        # this eliminates the need to do costly recalculation of edges each time mouse is moved
-#            eventArgs.additionalEntities = faceEdges
-#            return
-#            
-#        for edge in face.body.edges:
-#            if edge.isDegenerate:
-#                continue
-#            try:
-#                if edge.geometry.curveType != adsk.core.Curve3DTypes.Line3DCurveType:
-#                    continue
-#                vector = edge.startVertex.geometry.vectorTo(edge.endVertex.geometry)
-#                if vector.isPerpendicularTo(faceNormal):
-#                    continue
-#                if edge.faces.item(0).geometry.objectType != adsk.core.Plane.classType():
-#                    continue
-#                if edge.faces.item(1).geometry.objectType != adsk.core.Plane.classType():
-#                    continue              
-#                if edge.startVertex not in face.vertices:
-#                    if edge.endVertex not in face.vertices:
-#                        continue
-#                    else:
-#                        vector = edge.endVertex.geometry.vectorTo(edge.startVertex.geometry)
-#                if vector.dotProduct(faceNormal) >= 0:
-#                    continue
-#                if dbutils.getAngleBetweenFaces(edge) > math.pi:
-#                    continue
-#                faceEdges.add(edge)
-#            except:
-#                dbutils.messageBox('Failed at edge:\n{}'.format(traceback.format_exc()))
-#        self.faceAssociations[faceId] = faceEdges
-#        eventArgs.additionalEntities = faceEdges
-    
 
     @property
     def design(self):
