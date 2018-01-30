@@ -356,7 +356,7 @@ class DogboneCommand(object):
             if not eventArgs.selection.entity.assemblyContext:
 #                dealing with a root component body
                 activeBodyName = eventArgs.selection.entity.body.name
-               try:            
+                try:            
                     primaryFaceId = self.selectedOccurrences[activeBodyName]
                     primaryFace = self.selectedFaces[primaryFaceId[0]][0] #get actual BrepFace from its ID
                 except KeyError:
