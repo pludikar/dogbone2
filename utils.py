@@ -112,7 +112,9 @@ def clearAttribs(name):
     attribs = app.activeProduct.findAttributes("dogBoneGroup", name)
     for attrib in attribs:
         attrib.deleteMe()
-        
+
+def list1(arg):
+    return list(arg)        
 
 def clearFaceAttribs(design):
     attribs = design.findAttributes("dogBoneGroup","faceRef")

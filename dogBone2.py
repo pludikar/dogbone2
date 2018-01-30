@@ -189,12 +189,12 @@ class DogboneCommand(object):
             if changedEntity.assemblyContext:
                 activeOccurrenceName = changedEntity.assemblyContext.name
             else:
-                activeOccurrenceName = 'root'
+                activeOccurrenceName = changedEntity.body.name
                 
             if changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext:
                 changedEntityName = changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]
             else:
-                changedEntityName = 'root'
+                changedEntityName = changedEntity.body.name
             
             faceId = str(changedEntity.tempId) + ":" + changedEntityName
             faces = []
@@ -234,7 +234,7 @@ class DogboneCommand(object):
                     if edge.assemblyContext:
                         activeEdgeName = edge.assemblyContext.name.split(':')[-1]
                     else:
-                        activeEdgeName = 'root'
+                        activeEdgeName = changedEntity.body.name
 
                     edgeId = str(edge.tempId)+':'+ activeEdgeName
                     self.selectedEdges[edgeId] = faceId
@@ -349,57 +349,54 @@ class DogboneCommand(object):
 #        makes sure only valid occurrences and components are selectable
 #==============================================================================
 
-            if not eventArgs.selection.entity.assemblyContext:
-#                dealing with a root component body
-                activeOccurrenceName = 'root'
+            if not len( self.selectedOccurrences): #get out if the face selection list is empty
                 eventArgs.isSelectable = True
                 return
+ 
+            if not eventArgs.selection.entity.assemblyContext:
+#                dealing with a root component body
+                activeBodyName = eventArgs.selection.entity.body.name
+               try:            
+                    primaryFaceId = self.selectedOccurrences[activeBodyName]
+                    primaryFace = self.selectedFaces[primaryFaceId[0]][0] #get actual BrepFace from its ID
+                except KeyError:
+                    self.selectedFaces.clear()
+                    self.selectedOccurrences.clear()
+                    return
+                primaryFaceNormal = dbutils.getFaceNormal(primaryFace)
+                if primaryFaceNormal.isParallelTo(dbutils.getFaceNormal(eventArgs.selection.entity)):
+                    eventArgs.isSelectable = True
+                    return
+                eventArgs.isSelectable = False
+                return
+#           End of root component face processing
+#==============================================================================
+# Start of occurrence face processing              
+#==============================================================================
 
             activeOccurrence = eventArgs.selection.entity.assemblyContext
             activeOccurrenceName = activeOccurrence.name
             activeComponent = activeOccurrence.component
 
-            if len( self.selectedOccurrences) == 0: #get out if the face selection list is empty
-                eventArgs.isSelectable = True
-                return
-
-            if activeOccurrenceName not in self.selectedOccurrences:  #check if mouse is over a faces that is not already selected
-                eventArgs.isSelectable = True
-                return
-                    
-#           we got here because the face is not in root or is on the existing selected list    
+                 
+#           we got here because the face is either not in root or is on the existing selected list    
 #           at this point only need to check for duplicate component selection - Only one component allowed, to save on conflict checking
             
-            selectedFaceList = filter(lambda x: self.selectedFaces[x[0]][0].assemblyContext, self.selectedOccurrences.values())  # creates a list of selected faces
-            cList = list(selectedFaceList)
-            componentList = map(lambda x: self.selectedFaces[x][0].assemblyContext.component, selectedFaceList)
-            cList2 = list(componentList)
-            for selFace in selectedFaceList:
-                sel.append(selFace[0])
-                try:
-                    selComp = self.selectedFaces[selFace[0]][0].assemblyContext.component
-                except KeyError:
-                    continue  #process next face because selFace is not in the selectedFaces list
-                except AttributeError:
-                    continue  #process next face because self.selectedFaces[selFace[0]][0] is null - usually caused by the all face selections being deleted
-                if selComp != activeComponent:
-                    eventArgs.isSelectable = True
-                    continue
-            eventArgs.isSelectable = False
-                    
-            if activeOccurrence.component != eventArgs.selection.entity.assemblyContext.component:
+            try:
+                selectedComponentList = [self.selectedFaces[x[0]][0].assemblyContext.component for x in self.selectedOccurrences.values() if self.selectedFaces[x[0]][0].assemblyContext]
+            except KeyError:
                 eventArgs.isSelectable = True
                 return
-            
-            eventArgs.isSelectable = False
-            return
-                
-            if eventArgs.selection.entity.assemblyContext:
-                entityName = eventArgs.selection.entity.assemblyContext.name.split(':')[-1]
-            else:
-                entityName = 'root'
 
-            faceId = str(eventArgs.selection.entity.tempId)+":"+ entityName
+            if activeComponent not in selectedComponentList:
+                    eventArgs.isSelectable = True
+                    return
+
+            if activeOccurrenceName not in self.selectedOccurrences:  #check if mouse is over a face that is not already selected
+                eventArgs.isSelectable = False
+                return
+                
+            faceId = str(eventArgs.selection.entity.tempId)+":"+ activeOccurrenceName
 
             textResult = activeIn.parentCommand.commandInputs.itemById('TextBox') #Debugging
             textResult.text = 'faceId: ' + str(faceId)+':'+str(eventArgs.isSelectable) #Debugging
@@ -417,8 +414,8 @@ class DogboneCommand(object):
                 eventArgs.isSelectable = True
                 return
             eventArgs.isSelectable = False
-#        selecting faces
             return
+#        end selecting faces
             
         else:
 #==============================================================================
