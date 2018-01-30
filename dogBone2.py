@@ -333,7 +333,7 @@ class DogboneCommand(object):
                 if input.value <= 0:
                     args.areInputsValid = False
 #==============================================================================
-#  Routine gets called with every mouse movement, if the commandInput is active                   
+#  Routine gets called with every mouse movement, if a commandInput select is active                   
 #==============================================================================
     def onFaceSelect(self, args):
         eventArgs = adsk.core.SelectionEventArgs.cast(args)
@@ -348,45 +348,51 @@ class DogboneCommand(object):
 #        selection filter is limited to planar faces
 #        makes sure only valid occurrences and components are selectable
 #==============================================================================
-            activeOccurrence = eventArgs.selection.entity.assemblyContext
 
-            if eventArgs.selection.entity.assemblyContext:
-                activeOccurrenceName = activeOccurrence.name
-                activeComponent = activeOccurrence.component
-            else:
+            if not eventArgs.selection.entity.assemblyContext:
+#                dealing with a root component body
                 activeOccurrenceName = 'root'
+                eventArgs.isSelectable = True
+                return
+
+            activeOccurrence = eventArgs.selection.entity.assemblyContext
+            activeOccurrenceName = activeOccurrence.name
+            activeComponent = activeOccurrence.component
+
+            if len( self.selectedOccurrences) == 0: #get out if the face selection list is empty
+                eventArgs.isSelectable = True
+                return
 
             if activeOccurrenceName not in self.selectedOccurrences:  #check if mouse is over a faces that is not already selected
-                if not activeOccurrence: # no more processing needed if we're over a face in the rootComponent
-                    eventArgs.isSelectable = True
-                    return
-                if not self.selectedOccurrences: #get out if the face selection list is empty
-                    eventArgs.isSelectable = True
-                    return
-                    
-                # we got here because the face is not on the existing selected list, but could be the same component    
-                # at this point only need to check for duplicate component selection - Only one component allowed, to save on conflict checking
-                selectedFaceList = self.selectedOccurrences.values()  # creates a list of selected faces
-                sel = []
-                for selFace in selectedFaceList:
-                    sel.append(selFace[0])
-                    try:
-                        selComp = self.selectedFaces[selFace[0]][0].assemblyContext.component
-                    except KeyError:
-                        continue  #process next face because selFace is not in the selectedFaces list
-                    except AttributeError:
-                        continue  #process next face because self.selectedFaces[selFace[0]][0] is null - usually caused by the all face selections being deleted
-                    if selComp != activeComponent:
-                        eventArgs.isSelectable = True
-                        continue
-                eventArgs.isSelectable = False
-                        
-                if activeOccurrence.component != eventArgs.selection.entity.assemblyContext.component:
-                    eventArgs.isSelectable = True
-                    return
-                
-                eventArgs.isSelectable = False
+                eventArgs.isSelectable = True
                 return
+                    
+#           we got here because the face is not in root or is on the existing selected list    
+#           at this point only need to check for duplicate component selection - Only one component allowed, to save on conflict checking
+            
+            selectedFaceList = filter(lambda x: self.selectedFaces[x[0]][0].assemblyContext, self.selectedOccurrences.values())  # creates a list of selected faces
+            cList = list(selectedFaceList)
+            componentList = map(lambda x: self.selectedFaces[x][0].assemblyContext.component, selectedFaceList)
+            cList2 = list(componentList)
+            for selFace in selectedFaceList:
+                sel.append(selFace[0])
+                try:
+                    selComp = self.selectedFaces[selFace[0]][0].assemblyContext.component
+                except KeyError:
+                    continue  #process next face because selFace is not in the selectedFaces list
+                except AttributeError:
+                    continue  #process next face because self.selectedFaces[selFace[0]][0] is null - usually caused by the all face selections being deleted
+                if selComp != activeComponent:
+                    eventArgs.isSelectable = True
+                    continue
+            eventArgs.isSelectable = False
+                    
+            if activeOccurrence.component != eventArgs.selection.entity.assemblyContext.component:
+                eventArgs.isSelectable = True
+                return
+            
+            eventArgs.isSelectable = False
+            return
                 
             if eventArgs.selection.entity.assemblyContext:
                 entityName = eventArgs.selection.entity.assemblyContext.name.split(':')[-1]
