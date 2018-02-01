@@ -1,8 +1,8 @@
-# dogbone2 - under development, changes frequently
+# dogbone2 - v: 0.2
 #Author-Peter Ludikar
 #Description-A Fusion 360 Add-In for making dog-bone fillets.
 
-This version: 0.1  Generally works, but may be a few lingering bugs
+This version: 0.2  Generally works, but may be a few lingering bugs
 =========================================================================================================================================
 WARNING: use at your own risk. 
 The code provided is provided "as is" and with all faults. I specifically disclaim any implied warranty of merchantability or fitness for a particular use. The operation of the code provided is not warranted to be uninterrupted or error free.
@@ -22,7 +22,6 @@ The add-in will only allow you to select a single component, if there are multip
 
 
 To do:
-1. selecting faces that are affected by dogBones created from another face will currently throw an error.
-2. an error message will sometimes appear at the end - mostly this is caused by an inconsistency either in F360 or this add-in.  However, Dog bones will generally appear correctly
-3. Occasionally dogbones do not get created correctly - this appears to be a bug in F360.  Editing the offending hole(s), and changing the extents from 'To' to 'distance will usually cure this, but the holes will not longer be fully parametric!
-2. ... who knows
+1. an error message will sometimes appear at the end - mostly this is caused by an inconsistency either in F360 or this add-in.  However, Dog bones will generally appear correctly
+2. Occasionally dogbones do not get created correctly - this appears to be a bug in F360.  Editing the offending hole(s), and changing the extents from 'To' to 'distance will usually cure this, but the holes will not longer be fully parametric!
+3. ... who knows
