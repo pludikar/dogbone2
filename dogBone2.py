@@ -201,7 +201,7 @@ class DogboneCommand(object):
             faces = self.selectedOccurrences.get(activeOccurrenceName, faces)
             faces.append(faceId)
             self.selectedOccurrences[activeOccurrenceName] = faces # adds a face to a list of faces associated with this occurrence
-            self.selectedFaces[faceId] = [face, adsk.core.ObjectCollection.create()]  # creates a collecton (of edges) associated with a faceId
+            self.selectedFaces[faceId] = [face, adsk.core.ObjectCollection.create(), face.pointOnFace]  # creates a collecton (of edges) associated with a faceId
             
             faceNormal = dbutils.getFaceNormal(face)
 #==============================================================================
@@ -240,6 +240,7 @@ class DogboneCommand(object):
                     self.selectedEdges[edgeId] = faceId
                 except:
                     dbutils.messageBox('Failed at edge:\n{}'.format(traceback.format_exc()))
+
                  #end of processing faces
 #==============================================================================
 #         Processing changed edge selection            
@@ -381,7 +382,7 @@ class DogboneCommand(object):
                  
 #           we got here because the face is either not in root or is on the existing selected list    
 #           at this point only need to check for duplicate component selection - Only one component allowed, to save on conflict checking
-            
+            filtered = filter(lambda x: self.selectedFaces[x[0]][0].assemblyContext, self.selectedOccurrences.values())
             try:
                 selectedComponentList = [self.selectedFaces[x[0]][0].assemblyContext.component for x in self.selectedOccurrences.values() if self.selectedFaces[x[0]][0].assemblyContext]
             except KeyError:
@@ -488,36 +489,42 @@ class DogboneCommand(object):
         radius = userParams.itemByName('dbRadius').value
         offset = adsk.core.ValueInput.createByString('dbOffset')
 
-        for face in self.faces:
+#        create facePoints for each face - needs to be done here, because faces become inValid if a dogbone has changed the profile
+        faces = [(face, face.nativeObject.pointOnFace) if face.assemblyContext else (face, face.pointOnFace) for face in self.faces  ]
+ 
+        for face, facePoint in faces:
 #            Holes created in Occurrences don't appear to work correctly 
 #            components created by mirroring will fail!! - they use the coordinate space of the original, but I haven't 
 #            figured out how to work around this.
 #            face in an assembly context needs to be treated differently to a face that is at rootComponent level
 #        
-            startTlMarker = self.design.timeline.markerPosition
 
+            startTlMarker = self.design.timeline.markerPosition
             if face.assemblyContext:
                comp = face.assemblyContext.component
                occ = face.assemblyContext  
                face = face.nativeObject # this is a work around - calculate everything in the nativeObject space, then create an oppritate proxy
+               entityName = occ.name.split(':')[-1]
 
             else:
                comp = self.rootComp
                occ = None
+               entityName = face.body.name
 
+            if not face.isValid:
+               face = comp.findBRepUsingPoint(facePoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
+ 
 #            sketch = comp.sketches.add(comp.xYConstructionPlane, occ)  #used for fault finding
             holes = adsk.fusion.HoleFeatures.cast(comp.features.holeFeatures)
-                
-            dbutils.clearFaceAttribs(self.design)
-            dbutils.setFaceAttrib(face)
-                
+#            sketch = sketch.createForAssemblyContext(occ)
+#            sketch.sketchPoints.add(facePoint)        #for debugging 
+            
             faceNormal = dbutils.getFaceNormal(face)
             
             for edge in self.edges:
-                #face becomes invalid after a hole is added - use attributes to find the right face
-# TODO: faces that haven't been processed yet and that are affected by holes from another face will throw an error 
+
                 if not face.isValid:
-                    face = dbutils.refreshFace(self.design)
+                    face = comp.findBRepUsingPoint(facePoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0)
                 if edge.assemblyContext:
                     #put face and edge into right context (1st component) - create proxies
                     edge = edge.nativeObject
@@ -526,8 +533,11 @@ class DogboneCommand(object):
                     continue # edges that have been processed already will not be valid any more - at the moment this is easier than removing the 
 #                    affected edge from self.edges after having been processed
                     
-                if not dbutils.isEdgeAssociatedWithFace(face, edge):
-                    continue  # skip if edge is not associated with the face currently being processed
+                try:
+                    if not dbutils.isEdgeAssociatedWithFace(face, edge):
+                        continue  # skip if edge is not associated with the face currently being processed
+                except:
+                    pass
                 
                 startVertex = dbutils.getVertexAtFace(face, edge)
                 extentToEntity = dbutils.defineExtent(face, edge)
@@ -563,13 +573,11 @@ class DogboneCommand(object):
                 except:
                     self.errorCount += 1
                     continue
-#            occ.isLightBulbOn = lightState
             endTlMarker = self.design.timeline.markerPosition-1
             if endTlMarker - startTlMarker >0:
                 timelineGroup = self.design.timeline.timelineGroups.add(startTlMarker,endTlMarker)
                 timelineGroup.name = 'dogbone'
             adsk.doEvents()
-            dbutils.clearFaceAttribs(self.design)
         if self.errorCount >0:
             dbutils.messageBox('Reported errors:{}\nYou may not need to do anything, \nbut check holes have been created'.format(self.errorCount))
 

@@ -107,30 +107,30 @@ def getFaceNormal(face):
 def messageBox(*args):
     adsk.core.Application.get().userInterface.messageBox(*args)
 
-def clearAttribs(name):
-    app = adsk.core.Application.get()
-    attribs = app.activeProduct.findAttributes("dogBoneGroup", name)
-    for attrib in attribs:
-        attrib.deleteMe()
-
-def list1(arg):
-    return list(arg)        
-
-def clearFaceAttribs(design):
-    attribs = design.findAttributes("dogBoneGroup","faceRef")
-    if not attribs:
-        return
-    for attrib in attribs:
-        attrib.deleteMe()
-        
-def setFaceAttrib(face):
-    face.attributes.add("dogBoneGroup", "faceRef","1")
-    
-def refreshFace(design):
-    attribs = design.findAttributes("dogBoneGroup","faceRef")
-    if len(attribs) !=1:
-        return False
-    return attribs[0].parent
+#def clearAttribs(name):
+#    app = adsk.core.Application.get()
+#    attribs = app.activeProduct.findAttributes("dogBoneGroup", name)
+#    for attrib in attribs:
+#        attrib.deleteMe()
+#
+#def list1(arg):
+#    return list(arg)        
+#
+#def clearFaceAttribs(design):
+#    attribs = design.findAttributes("dogBoneGroup","faceRef")
+#    if not attribs:
+#        return
+#    for attrib in attribs:
+#        attrib.deleteMe()
+#        
+#def setFaceAttrib(face):
+#    face.attributes.add("dogBoneGroup", "faceRef","1")
+#    
+#def refreshFace(design):
+#    attribs = design.findAttributes("dogBoneGroup","faceRef")
+#    if len(attribs) !=1:
+#        return False
+#    return attribs[0].parent
     
 class HandlerHelper(object):
     def __init__(self):
