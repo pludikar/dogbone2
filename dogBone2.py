@@ -210,6 +210,8 @@ class DogboneCommand(object):
             for edge in face.body.edges:
                 if edge.isDegenerate:
                     continue
+                if edge in self.edges:
+                    continue
                 try:
                     if edge.geometry.curveType != adsk.core.Curve3DTypes.Line3DCurveType:
                         continue
