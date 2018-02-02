@@ -256,11 +256,10 @@ class DogboneCommand(object):
         # only need to do something if there are no edges left associated with a face
          #have to work backwards edge to faceId, then remove face from selection if associated edges == 0
         # This is complicated because all selected edges are mixed together, you can't simply find the edges that are associated
-#            oldEdgeList = self.selectedEdges.keys()
-#            edgeOccurrenceId = changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]
             try:
                 occurrenceNumber = ':' + changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]
             except OverflowError:
+#       All the edges have been deleted (selectionCount - 1) is negative
                 changedInput.isVisible = False
                 changedInput.commandInputs.itemById('select').hasFocus = True
                 self.selectedFaces.clear
@@ -269,7 +268,7 @@ class DogboneCommand(object):
 
             calcEdgeId = lambda x: str(x.tempId) + occurrenceNumber
             lookupEdge = lambda x: self.selectedEdges[x]
-#            newselectedList = [str(changedInput.selection(i).entity.tempId) +':'+ edgeOccurrenceId for i in range(changedInput.selectionCount)]
+
             changedSelectionList = [changedInput.selection(i).entity for i in range(changedInput.selectionCount)]
             changedEdgeIdList = map(calcEdgeId, changedSelectionList)
             changedEdge_FaceIdList = map(lookupEdge, changedEdgeIdList)
@@ -277,6 +276,7 @@ class DogboneCommand(object):
             try:
                 missingFace = [face for face in self.selectedFaces.keys() if face not in consolidatedFaceList]
             except Exception as e:
+#                
                 changedInput.commandInputs.itemById('select').hasFocus = True
                 self.ui.activeSelections.removeByEntity(self.selectedFaces[0])
                 changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
@@ -478,18 +478,38 @@ class DogboneCommand(object):
             dValIn = adsk.core.ValueInput.createByString(self.circStr)
             dParameter = userParams.add('dbToolDia',dValIn, self.design.unitsManager.defaultLengthUnits, '')
             dParameter.isFavorite = True
+        else:
+            uParam = userParams.itemByName('dbToolDia')
+            uParam.expression=  adsk.core.ValueInput.createByString(self.circStr)
+            uParam.isFavorite = True
+            
         if not userParams.itemByName('dbOffset'):
             rValIn = adsk.core.ValueInput.createByString(self.offStr)
-            rParameter = userParams.add('dbRadius',rValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
+            rParameter = userParams.add('dbOffset',rValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
+        else:
+            uParam = userParams.itemByName('dbOffset')
+            uParam.comment = 'Do NOT change formula'
+
         if not userParams.itemByName('dbRadius'):
             rValIn = adsk.core.ValueInput.createByString('dbToolDia/2 + dbOffset')
             rParameter = userParams.add('dbRadius',rValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
+        else:
+            uParam = userParams.itemByName('dbRadius')
+            uParam.expression = 'dbToolDia/2 + dbOffset'
+            uParam.comment = 'Do NOT change formula'
+
+
         if not userParams.itemByName('dbHoleOffset'):
             oValIn = adsk.core.ValueInput.createByString('dbRadius / sqrt(2)')
             oParameter = userParams.add('dbHoleOffset', oValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
+        else:
+            uParam = userParams.itemByName('dbHoleOffset')
+            uParam.expression = 'dbRadius / sqrt(2)'
+            uParam.comment = 'Do NOT change formula'
 
         radius = userParams.itemByName('dbRadius').value
         offset = adsk.core.ValueInput.createByString('dbOffset')
+        offset = adsk.core.ValueInput.createByReal(userParams.itemByName('dbHoleOffset').value)
 
 #        create facePoints for each face - needs to be done here, because faces become inValid if a dogbone has changed the profile
         faces = [(face, face.nativeObject.pointOnFace) if face.assemblyContext else (face, face.pointOnFace) for face in self.faces  ]
@@ -563,16 +583,17 @@ class DogboneCommand(object):
                 holeInput.tipAngle = adsk.core.ValueInput.createByString('180 deg')
                 holeInput.isDefaultDirection = True
                 holeInput.creationOccurrence = face.assemblyContext  #this parameter doesn't appear to work!!
-                holeInput.participantBodies = [face.body]
+#                holeInput.participantBodies = [face.body.createForAssemblyContext(occ)] if face.assemblyContext else [face.body]
                 holeInput.setPositionByPlaneAndOffsets(face, initGuess, edge1, offset, edge2, offset)
                 holeInput.setOneSideToExtent(extentToEntity,False)
                 try: 
                     hole = holes.add(holeInput)
-                    hole = hole.createForAssemblyContext(occ)
+                    hole = hole.createForAssemblyContext(occ) if face.assemblyContext else hole
+#                    hole.participantBodies = [face.body.createForAssemblyContext(occ)] if face.assemblyContext else [face.body]
                     adsk.doEvents()
                     hole.name = 'dogbone'
 
-                except:
+                except Exception as e:
                     self.errorCount += 1
                     continue
             endTlMarker = self.design.timeline.markerPosition-1
