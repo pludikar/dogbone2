@@ -440,7 +440,7 @@ class DogboneCommand(object):
             if eventArgs.selection.entity.assemblyContext:
                 activeOccurrenceName = activeOccurrence.name
             else:
-                activeOccurrenceName = 'root' 
+                activeOccurrenceName = eventArgs.selection.entity.body.name 
             
             try:            
                 primaryFaceId = self.selectedOccurrences[activeOccurrenceName]
