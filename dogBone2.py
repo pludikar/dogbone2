@@ -196,12 +196,12 @@ class DogboneCommand(object):
             else:
                 changedEntityName = changedEntity.body.name
             
-            faceId = str(changedEntity.tempId) + ":" + changedEntityName
+            faceId = str(changedEntity.tempId) + ":" + changedEntityName 
             faces = []
             faces = self.selectedOccurrences.get(activeOccurrenceName, faces)
             faces.append(faceId)
             self.selectedOccurrences[activeOccurrenceName] = faces # adds a face to a list of faces associated with this occurrence
-            self.selectedFaces[faceId] = [face, adsk.core.ObjectCollection.create(), face.pointOnFace]  # creates a collecton (of edges) associated with a faceId
+            self.selectedFaces[faceId] = [face, adsk.core.ObjectCollection.create(), face.nativeObject.pointOnFace if face.assemblyContext else face.pointOnFace]  # creates a collecton (of edges) associated with a faceId
             
             faceNormal = dbutils.getFaceNormal(face)
 #==============================================================================
@@ -233,10 +233,8 @@ class DogboneCommand(object):
                         continue
                     changedInput.commandInputs.itemById('edgeSelect').addSelection(edge)
                     self.selectedFaces[faceId][1].add(edge)
-                    if edge.assemblyContext:
-                        activeEdgeName = edge.assemblyContext.name.split(':')[-1]
-                    else:
-                        activeEdgeName = changedEntity.body.name
+
+                    activeEdgeName = edge.assemblyContext.name.split(':')[-1] if edge.assemblyContext else edge.body.name
 
                     edgeId = str(edge.tempId)+':'+ activeEdgeName
                     self.selectedEdges[edgeId] = faceId
@@ -256,38 +254,49 @@ class DogboneCommand(object):
         # only need to do something if there are no edges left associated with a face
          #have to work backwards edge to faceId, then remove face from selection if associated edges == 0
         # This is complicated because all selected edges are mixed together, you can't simply find the edges that are associated
-            try:
-                occurrenceNumber = ':' + changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]
-            except OverflowError:
+            if changedInput.selectionCount == 0:
 #       All the edges have been deleted (selectionCount - 1) is negative
                 changedInput.isVisible = False
                 changedInput.commandInputs.itemById('select').hasFocus = True
                 self.selectedFaces.clear
                 self.ui.activeSelections.clear()
                 return
+            
+            changedSelections = changedInput.selection
 
-            calcEdgeId = lambda x: str(x.tempId) + occurrenceNumber
+            calcEdgeId = lambda x: str(x.tempId) + ':' + x.assemblyContext.name.split(':')[-1] if x.assemblyContext else str(x.tempId) + ':' + x.body.name
             lookupEdge = lambda x: self.selectedEdges[x]
 
             changedSelectionList = [changedInput.selection(i).entity for i in range(changedInput.selectionCount)]
-            changedEdgeIdList = map(calcEdgeId, changedSelectionList)
+            changedEdgeIdList = map(calcEdgeId, changedSelectionList) # creates list of 
             changedEdge_FaceIdList = map(lookupEdge, changedEdgeIdList)
             consolidatedFaceList = set(changedEdge_FaceIdList)
+#       find set of faces associated with all edges - if the face is missing, then all edges of the associated edges have been unselected
             try:
                 missingFace = [face for face in self.selectedFaces.keys() if face not in consolidatedFaceList]
+#                will be [] if no missing face
             except Exception as e:
-#                
+#               get here because last edge of an associated face has been unselected 
                 changedInput.commandInputs.itemById('select').hasFocus = True
                 self.ui.activeSelections.removeByEntity(self.selectedFaces[0])
                 changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
                 return
-            if not len(missingFace):
+            if len(missingFace) :
+                changedInput.commandInputs.itemById('select').hasFocus = True
+                self.ui.activeSelections.removeByEntity(self.selectedFaces[missingFace[0]][0])
+                changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
+                del self.selectedFaces[missingFace[0]]    
                 return
-        changedInput.commandInputs.itemById('select').hasFocus = True
-        self.ui.activeSelections.removeByEntity(self.selectedFaces[missingFace[0]][0])
-        changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
-        del self.selectedFaces[missingFace[0]]    
-        return
+            for face in self.selectedFaces.values():
+                missingEdge = [edge for edge in iter(face[1]) if edge not in changedSelectionList]
+                if not missingEdge:
+                    continue
+                face[1].removeByItem(missingEdge[0])
+            return
+#==============================================================================
+#         end of processing removed edge
+#TODO:         start of processing added edge
+#==============================================================================
       
 #==============================================================================
 # put the selections into variables that can be accessed by the main routine            
@@ -362,9 +371,9 @@ class DogboneCommand(object):
                 try:            
                     primaryFaceId = self.selectedOccurrences[activeBodyName]
                     primaryFace = self.selectedFaces[primaryFaceId[0]][0] #get actual BrepFace from its ID
-                except KeyError:
-                    self.selectedFaces.clear()
-                    self.selectedOccurrences.clear()
+                except KeyError as e:
+#                    self.selectedFaces.clear()
+#                    self.selectedOccurrences.clear()
                     return
                 primaryFaceNormal = dbutils.getFaceNormal(primaryFace)
                 if primaryFaceNormal.isParallelTo(dbutils.getFaceNormal(eventArgs.selection.entity)):
@@ -480,7 +489,6 @@ class DogboneCommand(object):
             dParameter.isFavorite = True
         else:
             uParam = userParams.itemByName('dbToolDia')
-            uParam.expression=  adsk.core.ValueInput.createByString(self.circStr)
             uParam.isFavorite = True
             
         if not userParams.itemByName('dbOffset'):
@@ -510,92 +518,96 @@ class DogboneCommand(object):
         radius = userParams.itemByName('dbRadius').value
         offset = adsk.core.ValueInput.createByString('dbOffset')
         offset = adsk.core.ValueInput.createByReal(userParams.itemByName('dbHoleOffset').value)
-
-#        create facePoints for each face - needs to be done here, because faces become inValid if a dogbone has changed the profile
-        faces = [(face, face.nativeObject.pointOnFace) if face.assemblyContext else (face, face.pointOnFace) for face in self.faces  ]
- 
-        for face, facePoint in faces:
-#            Holes created in Occurrences don't appear to work correctly 
-#            components created by mirroring will fail!! - they use the coordinate space of the original, but I haven't 
-#            figured out how to work around this.
-#            face in an assembly context needs to be treated differently to a face that is at rootComponent level
-#        
-
+        
+        for occurrenceFace in self.selectedOccurrences.values():
             startTlMarker = self.design.timeline.markerPosition
-            if face.assemblyContext:
-               comp = face.assemblyContext.component
-               occ = face.assemblyContext  
-               face = face.nativeObject # this is a work around - calculate everything in the nativeObject space, then create an oppritate proxy
-               entityName = occ.name.split(':')[-1]
 
-            else:
-               comp = self.rootComp
-               occ = None
-               entityName = face.body.name
-
-            if not face.isValid:
-               face = comp.findBRepUsingPoint(facePoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
- 
-#            sketch = comp.sketches.add(comp.xYConstructionPlane, occ)  #used for fault finding
-            holes = adsk.fusion.HoleFeatures.cast(comp.features.holeFeatures)
-#            sketch = sketch.createForAssemblyContext(occ)
-#            sketch.sketchPoints.add(facePoint)        #for debugging 
-            
-            faceNormal = dbutils.getFaceNormal(face)
-            
-            for edge in self.edges:
-
-                if not face.isValid:
-                    face = comp.findBRepUsingPoint(facePoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0)
-                if edge.assemblyContext:
-                    #put face and edge into right context (1st component) - create proxies
-                    edge = edge.nativeObject
-                    
-                if not edge.isValid:
-                    continue # edges that have been processed already will not be valid any more - at the moment this is easier than removing the 
-#                    affected edge from self.edges after having been processed
-                    
-                try:
-                    if not dbutils.isEdgeAssociatedWithFace(face, edge):
-                        continue  # skip if edge is not associated with the face currently being processed
-                except:
-                    pass
+            for faceId in occurrenceFace:
+                face = self.selectedFaces[faceId][0]
+                edges = self.selectedFaces[faceId][1]
+                facePoint = self.selectedFaces[faceId][2]
+    #            Holes created in Occurrences don't appear to work correctly 
+    #            components created by mirroring will fail!! - they use the coordinate space of the original, but I haven't 
+    #            figured out how to work around this.
+    #            face in an assembly context needs to be treated differently to a face that is at rootComponent level
+    #        
+                if face.assemblyContext:
+                   comp = face.assemblyContext.component
+                   occ = face.assemblyContext  
+                   face = face.nativeObject # this is a work around - calculate everything in the nativeObject space, then create an oppritate proxy
+                   entityName = occ.name.split(':')[-1]
+    
+                else:
+                   comp = self.rootComp
+                   occ = None
+                   entityName = face.body.name
+    
                 
-                startVertex = dbutils.getVertexAtFace(face, edge)
-                extentToEntity = dbutils.defineExtent(face, edge)
-                try:
-                    (edge1, edge2) = dbutils.getCornerEdgesAtFace(face, edge)
-                except: 
-                    dbutils.messageBox('Failed at findAdjecentFaceEdges:\n{}'.format(traceback.format_exc()))
-
-                initGuess = startVertex.geometry.copy()
-                #determine directions to translate the initGuess - needs to be inside the corner, not on the face
-                for edgeFace in edge.faces:
-                    dirVect = dbutils.getFaceNormal(edgeFace).copy()
-                    dirVect.normalize()
-                    dirVect.scaleBy(radius/math.sqrt(2))  #ideally radius should be linked to parameters, 
-                                                          # but hole start point still is the right quadrant
-                    initGuess.translateBy(dirVect)
-#                sketch.sketchPoints.add(initGuess)        #for debugging 
-
-                #create hole attributes
-                holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByString('dbToolDia'))
-                holeInput.tipAngle = adsk.core.ValueInput.createByString('180 deg')
-                holeInput.isDefaultDirection = True
-                holeInput.creationOccurrence = face.assemblyContext  #this parameter doesn't appear to work!!
-#                holeInput.participantBodies = [face.body.createForAssemblyContext(occ)] if face.assemblyContext else [face.body]
-                holeInput.setPositionByPlaneAndOffsets(face, initGuess, edge1, offset, edge2, offset)
-                holeInput.setOneSideToExtent(extentToEntity,False)
-                try: 
-                    hole = holes.add(holeInput)
-                    hole = hole.createForAssemblyContext(occ) if face.assemblyContext else hole
-#                    hole.participantBodies = [face.body.createForAssemblyContext(occ)] if face.assemblyContext else [face.body]
-                    adsk.doEvents()
-                    hole.name = 'dogbone'
-
-                except Exception as e:
-                    self.errorCount += 1
-                    continue
+                if not face.isValid:
+                   face = comp.findBRepUsingPoint(facePoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
+    
+                faceId = str(face.tempId) + ':' + entityName 
+     
+    #            sketch = comp.sketches.add(comp.xYConstructionPlane, occ)  #used for fault finding
+                holes = adsk.fusion.HoleFeatures.cast(comp.features.holeFeatures)
+    #            sketch = sketch.createForAssemblyContext(occ)
+    #            sketch.sketchPoints.add(facePoint)        #for debugging 
+                
+                faceNormal = dbutils.getFaceNormal(face)
+                                
+                for edge in iter(edges):
+    
+                    if not face.isValid:
+                        face = comp.findBRepUsingPoint(facePoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0)
+                    if edge.assemblyContext:
+                        #put face and edge into right context (1st component) - create proxies
+                        edge = edge.nativeObject
+                        
+                    if not edge.isValid:
+                        continue # edges that have been processed already will not be valid any more - at the moment this is easier than removing the 
+    #                    affected edge from self.edges after having been processed
+                        
+                    try:
+                        if not dbutils.isEdgeAssociatedWithFace(face, edge):
+                            continue  # skip if edge is not associated with the face currently being processed
+                    except:
+                        pass
+                    
+                    startVertex = dbutils.getVertexAtFace(face, edge)
+                    extentToEntity = dbutils.defineExtent(face, edge)
+                    try:
+                        (edge1, edge2) = dbutils.getCornerEdgesAtFace(face, edge)
+                    except: 
+                        dbutils.messageBox('Failed at findAdjecentFaceEdges:\n{}'.format(traceback.format_exc()))
+    
+                    initGuess = startVertex.geometry.copy()
+                    #determine directions to translate the initGuess - needs to be inside the corner, not on the face
+                    for edgeFace in edge.faces:
+                        dirVect = dbutils.getFaceNormal(edgeFace).copy()
+                        dirVect.normalize()
+                        dirVect.scaleBy(radius/math.sqrt(2))  #ideally radius should be linked to parameters, 
+                                                              # but hole start point still is the right quadrant
+                        initGuess.translateBy(dirVect)
+    #                sketch.sketchPoints.add(initGuess)        #for debugging 
+    
+                    #create hole attributes
+                    holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByString('dbToolDia'))
+                    holeInput.tipAngle = adsk.core.ValueInput.createByString('180 deg')
+                    holeInput.isDefaultDirection = True
+                    holeInput.creationOccurrence = face.assemblyContext  #this parameter doesn't appear to work!!
+    #                holeInput.participantBodies = [face.body.createForAssemblyContext(occ)] if face.assemblyContext else [face.body]
+                    holeInput.setPositionByPlaneAndOffsets(face, initGuess, edge1, offset, edge2, offset)
+                    holeInput.setOneSideToExtent(extentToEntity,False)
+                    try: 
+                        hole = holes.add(holeInput)
+                        hole = hole.createForAssemblyContext(occ) if face.assemblyContext else hole
+    #                    hole.participantBodies = [face.body.createForAssemblyContext(occ)] if face.assemblyContext else [face.body]
+                        adsk.doEvents()
+                        hole.name = 'dogbone'
+    
+                    except Exception as e:
+                        self.errorCount += 1
+                        continue
             endTlMarker = self.design.timeline.markerPosition-1
             if endTlMarker - startTlMarker >0:
                 timelineGroup = self.design.timeline.timelineGroups.add(startTlMarker,endTlMarker)
