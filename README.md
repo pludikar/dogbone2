@@ -1,4 +1,4 @@
-# dogbone2 - v: 0.2.1
+# dogbone2 - v: 0.2.2
 #Author-Peter Ludikar
 #Description-A Fusion 360 Add-In for making dog-bone fillets.
 
