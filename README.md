@@ -39,8 +39,6 @@ The add-in will then create a dogbone with diameter equal to the tool diameter p
 
 * Once a face is selected, only faces parallel to the first face can be selected.  If you need to select a different plane, just start the add-in again.
 
----
-
 ## To do:
 
 1. an error message will sometimes appear at the end - mostly this is caused by an inconsistency either in F360 or this add-in.  However, Dog bones will generally appear correctly
