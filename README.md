@@ -33,7 +33,7 @@ the performance of this approach is day and night compared to the original versi
 1. Select the face(s) you want the dogbones to drop from. 
 2. Specify a tool diameter and a radial offset.
 
-The add-in will then create a dogbone with diameter equal to the tool diameter plus twice the offset (as the offset is applied to the radius) at each selected edge.  The critical dimensions are maintained in the parameters - so you can change the dimensions as and when needed.  
+The add-in will then create a dogbone with diameter equal to the tool diameter plus twice the offset (as the offset is applied to the radius) at each internal corner edge.  The critical dimensions are maintained in the parameters - so you can change the dimensions as and when needed.
 
 * The add-in will only allow you to select a single component, if there are multiple copies.  Other unrelated components can be selected as needed.  
 
