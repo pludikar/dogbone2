@@ -24,7 +24,9 @@ The code provided is provided "as is" and with all faults. I specifically discla
 Notes:
 ===
 
-This version: 0.3  Generally works, but may be a few lingering bugs - Needs more thorough testing
+This version: 0.3  Generally works, but there may be a few lingering bugs - Needs more thorough testing
+
+---
 
 I've completely revamped the dogbone add-in by Casey Rogers, Patrick Rainsberry and David Liu
 some of the original utilities have remained, but mostly everything else has changed.
