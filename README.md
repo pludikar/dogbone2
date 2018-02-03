@@ -1,7 +1,7 @@
 Dogbone2 - using direct hole method
 ===
 
-## version: 0.3
+## Version: 0.3
 
 ## Description
 
@@ -22,16 +22,22 @@ This version: 0.3  Generally works, but there may be a few lingering bugs - Need
 ---
 
 I've completely revamped the dogbone add-in by Casey Rogers, Patrick Rainsberry and David Liu
-some of the original utilities have remained, but mostly everything else has changed.
+some of the original utilities have remained, but mostly everything else has changed.  There's probably <5% of the original remaining
 
-The original add-in was based on creating points and extruding - I found using sketches and extrusion to be very heavy 
-on processing resources, so this version has been designed to create dogbones directly by using a hole tool. The add-in was also breaking frequently - it didn't like joints, among other things.  So far the
-the performance of this approach is day and night compared to the original version. 
+The original add-in was based on creating sketches and extruding - I found using this approach to be very heavy 
+on processing resources, so this version has been designed to create dogbones directly by using a hole tool. The original add-in was also breaking frequently - it didn't like joints, among other things.  So far the
+the performance of this approach is day and night compared to the original version (although time will tell if this claim is true). 
 
-Select the face you want the dogbones to drop from. Specify a tool diameter and a radial offset.
+## Instructions
+
+1. Select the face(s) you want the dogbones to drop from. 
+2. Specify a tool diameter and a radial offset.
+
 The add-in will then create a dogbone with diameter equal to the tool diameter plus twice the offset (as the offset is applied to the radius) at each selected edge.  The critical dimensions are maintained in the parameters - so you can change the dimensions as and when needed.  
 
-The add-in will only allow you to select a single component, if there are multiple copies.  Other unrelated components can be selected as needed.  Once a face is selected, only faces parallel to the first face can be selected.  If you need to select a different plane, just start the add-in again.
+* The add-in will only allow you to select a single component, if there are multiple copies.  Other unrelated components can be selected as needed.  
+
+* Once a face is selected, only faces parallel to the first face can be selected.  If you need to select a different plane, just start the add-in again.
 
 ---
 
