@@ -1,11 +1,7 @@
 Dogbone2 - using direct hole method
 ===
+
 ## version: 0.3
-
-Author
-===
-
-Peter Ludikar
 
 Description
 ===
@@ -46,3 +42,12 @@ The add-in will only allow you to select a single component, if there are multip
 1. an error message will sometimes appear at the end - mostly this is caused by an inconsistency either in F360 or this add-in.  However, Dog bones will generally appear correctly
 2. Occasionally dogbones do not get created correctly - this appears to be a bug in F360.  Editing the offending hole(s), and changing the extents from 'To' to 'distance will usually cure this, but the holes will not longer be fully parametric!
 3. ... who knows
+
+## License
+
+Samples are licensed under the terms of the [MIT License](http://opensource.org/licenses/MIT). Please see the [LICENSE](LICENSE) file for full details.
+
+Author
+===
+
+Peter Ludikar
