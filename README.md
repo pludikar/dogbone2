@@ -1,4 +1,4 @@
-Dogbone2
+Dogbone2 - using direct hole method
 ===
 ## version: 0.3
 
