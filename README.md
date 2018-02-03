@@ -3,8 +3,7 @@ Dogbone2 - using direct hole method
 
 ## version: 0.3
 
-Description
-===
+## Description
 
 A Fusion 360 Add-In for making dog-bone fillets.
 
@@ -16,8 +15,7 @@ A Fusion 360 Add-In for making dog-bone fillets.
 
 ---
 
-Notes:
-===
+## Notes:
 
 This version: 0.3  Generally works, but there may be a few lingering bugs - Needs more thorough testing
 
@@ -37,7 +35,7 @@ The add-in will only allow you to select a single component, if there are multip
 
 ---
 
-***To do:***
+## To do:
 
 1. an error message will sometimes appear at the end - mostly this is caused by an inconsistency either in F360 or this add-in.  However, Dog bones will generally appear correctly
 2. Occasionally dogbones do not get created correctly - this appears to be a bug in F360.  Editing the offending hole(s), and changing the extents from 'To' to 'distance will usually cure this, but the holes will not longer be fully parametric!
@@ -47,7 +45,6 @@ The add-in will only allow you to select a single component, if there are multip
 
 Samples are licensed under the terms of the [MIT License](http://opensource.org/licenses/MIT). Please see the [LICENSE](LICENSE) file for full details.
 
-Author
-===
+## Author
 
 Peter Ludikar
