@@ -17,7 +17,7 @@ A Fusion 360 Add-In for making dog-bone fillets.
 
 **WARNING: use at your own risk.**
 
-The code provided is provided "as is" and with all faults. I specifically disclaim any implied warranty of merchantability or fitness for a particular use. The operation of the code provided is not warranted to be uninterrupted or error free.
+**The code provided is provided "as is" and with all faults. I specifically disclaim any implied warranty of merchantability or fitness for a particular use. The operation of the code provided is not warranted to be uninterrupted or error free.**
 
 ---
 
