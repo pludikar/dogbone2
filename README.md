@@ -28,6 +28,10 @@ The original add-in was based on creating sketches and extruding - I found using
 on processing resources, so this version has been designed to create dogbones directly by using a hole tool. The original add-in was also breaking frequently - it didn't like joints, among other things.  So far the
 the performance of this approach is day and night compared to the original version (although time will tell if this claim is true). 
 
+## Installation
+
+Once this add-in is mature enough I'll add instructions.  Until then, if you don't know how to install an add-in into Fusion 360, it's too early in the development cycle for you to use this.  Anyone else - please send comments and/or error messages, along with the use case, so I can figure out how to improve the design.
+
 ## Instructions
 
 1. Select the face(s) you want the dogbones to drop from.  The add-in will only allow you to select appropriate faces, once a face has been selected. 
