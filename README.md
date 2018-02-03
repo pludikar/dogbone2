@@ -13,10 +13,6 @@ Description
 
 A Fusion 360 Add-In for making dog-bone fillets.
 
-Notes:
-===
-This version: 0.3  Generally works, but may be a few lingering bugs - Needs more thorough testing
-
 ---
 
 **WARNING: use at your own risk.**
@@ -24,6 +20,11 @@ This version: 0.3  Generally works, but may be a few lingering bugs - Needs more
 The code provided is provided "as is" and with all faults. I specifically disclaim any implied warranty of merchantability or fitness for a particular use. The operation of the code provided is not warranted to be uninterrupted or error free.
 
 ---
+
+Notes:
+===
+
+This version: 0.3  Generally works, but may be a few lingering bugs - Needs more thorough testing
 
 I've completely revamped the dogbone add-in by Casey Rogers, Patrick Rainsberry and David Liu
 some of the original utilities have remained, but mostly everything else has changed.
