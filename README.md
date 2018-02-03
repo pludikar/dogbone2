@@ -18,7 +18,8 @@ Notes:
 This version: 0.3  Generally works, but may be a few lingering bugs - Needs more thorough testing
 
 ---
-**WARNING: use at your own risk.** 
+**WARNING: use at your own risk.**
+
 The code provided is provided "as is" and with all faults. I specifically disclaim any implied warranty of merchantability or fitness for a particular use. The operation of the code provided is not warranted to be uninterrupted or error free.
 ---
 I've completely revamped the dogbone add-in by Casey Rogers, Patrick Rainsberry and David Liu
