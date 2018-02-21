@@ -600,7 +600,7 @@ class DogboneCommand(object):
                     
                     midlineConstr1.startSketchPoint.isFixed = True
                     
-                    circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(midlineConstr1.endSketchPoint, self.circVal/2)
+                    circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(midlineConstr1.endSketchPoint, self.circVal/2)  #as the centre is placed on midline endPoint, it automatically gets constrained
                     
                     lastProfile = sketch.profiles.count-1
                     profile = sketch.profiles.item(lastProfile)
@@ -608,7 +608,7 @@ class DogboneCommand(object):
                     textPoint = midlineConstr1.endSketchPoint.geometry.copy()
                     
                     lineDim = sketch.sketchDimensions.addDistanceDimension(midlineConstr1.startSketchPoint,midlineConstr1.endSketchPoint, adsk.fusion.DimensionOrientations.AlignedDimensionOrientation, textPoint)
-                    lineDim.parameter.expression = "dbRadius*1.1"
+                    lineDim.parameter.expression = "dbToolDia/2*1.1"  #the 1.1 factor should be a parameter
                     
                     extentToEntity = dbUtils.findExtent(face, edge)
                     endExtentDef = adsk.fusion.ToEntityExtentDefinition.create(extentToEntity, False)
