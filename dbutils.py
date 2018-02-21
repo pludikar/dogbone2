@@ -47,9 +47,9 @@ def getAngleBetweenFaces(edge):
 
     return angle
 
-def defineExtent(face, edge):
+def findExtent(face, edge):
     
-    faceNormal = adsk.core.Vector3D.cast(face.evaluator.getNormalAtPoint(face.pointOnFace)[1])
+#    faceNormal = adsk.core.Vector3D.cast(face.evaluator.getNormalAtPoint(face.pointOnFace)[1])
     
     if edge.startVertex in face.vertices:
         endVertex = edge.endVertex
@@ -59,10 +59,17 @@ def defineExtent(face, edge):
 
     
 def correctedEdgeVector(edge, refVertex):
-    if edge.startVertex.geometry == refVertex.geometry:
+    if edge.startVertex.geometry.isEqualTo(refVertex.geometry):
         return edge.startVertex.geometry.vectorTo(edge.endVertex.geometry)
     else:
         return edge.endVertex.geometry.vectorTo(edge.startVertex.geometry)
+    return False
+
+def correctedSketchEdgeVector(edge, refPoint):
+    if edge.startSketchPoint.geometry.isEqualTo(refPoint.geometry):
+        return edge.startSketchPoint.geometry.vectorTo(edge.endSketchPoint.geometry)
+    else:
+        return edge.endSketchPoint.geometry.vectorTo(edge.startSketchPoint.geometry)
     return False
     
 
