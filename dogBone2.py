@@ -21,6 +21,8 @@ import adsk.core, adsk.fusion
 import math
 import traceback
 import uuid
+import re
+import os
 
 import time
 from . import dbutils as dbUtils
@@ -49,9 +51,50 @@ class DogboneCommand(object):
         self.edges = []
         self.benchmark = False
         self.errorCount = 0
+        self.boneDirection = "both"
+        self.minimal = False
+        self.minimalPercentage = 10.0
         self.faceSelections = adsk.core.ObjectCollection.create()
 
         self.handlers = dbUtils.HandlerHelper()
+
+        self.appPath = os.path.dirname(os.path.abspath(__file__))
+
+    def writeDefaults(self):
+        with open(os.path.join(self.appPath, 'defaults.dat'), 'w') as file:
+            file.write('offStr:' + self.offStr)
+            file.write('!offVal:' + str(self.offVal))
+            file.write('!circStr:' + self.circStr)
+            file.write('!circVal:' + str(self.circVal))
+            #file.write('!outputUnconstrainedGeometry:' + str(self.outputUnconstrainedGeometry))
+            file.write('!benchmark:' + str(self.benchmark))
+            file.write('!boneDirection:' + self.boneDirection)
+            file.write('!minimal:' + str(self.minimal))
+            file.write('!minimalPercentage:' + str(self.minimalPercentage))
+            #file.write('!limitParticipation:' + str(self.limitParticipation))
+            #file.write('!minimumAngle:' + str(self.minimumAngle))
+            #file.write('!maximumAngle:' + str(self.maximumAngle))
+    
+    def readDefaults(self): 
+        if not os.path.isfile(os.path.join(self.appPath, 'defaults.dat')):
+            return
+        with open(os.path.join(self.appPath, 'defaults.dat'), 'r') as file:
+            line = file.read()
+
+        for data in line.split('!'):
+            var, val = data.split(':')
+            if   var == 'offStr': self.offStr = val
+            elif var == 'offVal': self.offVal = float(val)
+            elif var == 'circStr': self.circStr = val
+            elif var == 'circVal': self.circVal = float(val)
+            #elif var == 'outputUnconstrainedGeometry': self.outputUnconstrainedGeometry = val == 'True'
+            elif var == 'benchmark': self.benchmark = val == 'True'
+            elif var == 'boneDirection': self.boneDirection = val
+            elif var == 'minimal': self.minimal = val == 'True'
+            elif var == 'minimalPercentage': self.minimalPercentage = float(val)
+            #elif var == 'limitParticipation': self.limitParticipation = val == 'True'
+            #elif var == 'minimumAngle': self.minimumAngle = int(val)
+            #elif var == 'maximumAngle': self.maximumAngle = int(val)
 
     def addButton(self):
         # clean up any crashed instances of the button if existing
@@ -97,6 +140,8 @@ class DogboneCommand(object):
 
         inputs = adsk.core.CommandInputs.cast(inputs.command.commandInputs)
 
+        self.readDefaults()
+
         selInput0 = inputs.addSelectionInput(
             'select', 'Face',
             'Select a face to apply dogbones to all internal corner edges')
@@ -121,7 +166,18 @@ class DogboneCommand(object):
         inp = inputs.addValueInput(
             'offset', 'Additional Offset', self.design.unitsManager.defaultLengthUnits,
             adsk.core.ValueInput.createByString(self.offStr))
-        inp.tooltip = "Additional increase to the radius of the dogbone."
+        inp.tooltip = "Additional increase to the radius of the dogbone. (Probably don't want to do this with minimal dogbones)"
+
+        typelist = inputs.addDropDownCommandInput('typeList', ' Select Dogbone Direction', adsk.core.DropDownStyles.LabeledIconDropDownStyle)
+        typelist.listItems.add('Along Both Sides', self.boneDirection == 'both', '')
+        typelist.listItems.add('Along Longest', self.boneDirection == 'longest', '')
+        typelist.listItems.add('Along Shortest', self.boneDirection == 'shortest', '')
+        inp = inputs.addBoolValueInput("minimal", "Create Minimal Dogbones", True, "", self.minimal)
+        inp.tooltip = "Offsets the dogbone circle inwards by (default) 10% to get a minimal dogbone. " \
+                      "Workpieces will probably need to be hammered together.\n" \
+                      "Only works with \"Along Both Sides\"."
+        inp.isVisible = (self.boneDirection == 'both')
+
 
         inputs.addBoolValueInput("benchmark", "Benchmark running time", True, "", self.benchmark)
         
@@ -160,20 +216,26 @@ class DogboneCommand(object):
                     self.selectedFaces.clear()
                     self.selectedEdges.clear()
                     changedInput.commandInputs.itemById('edgeSelect').clearSelection()
+                    changedInput.commandInputs.itemById('edgeSelect').isVisible = False   
                     changedInput.commandInputs.itemById('select').hasFocus = True
                    
                     return
-                    
+                except AttributeError:
+                    faceOccurrenceId = changedInput.selection(changedInput.selectionCount-1).entity.body.name.split(':')[-1]
+
                 selectionList = [str(changedInput.selection(i).entity.tempId) +':'+ faceOccurrenceId for i in range(changedInput.selectionCount)]
                 missingFace = [select for select in newFaceList if select not in selectionList][0]
                 edgeList = self.selectedFaces[missingFace][1]
                 changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
-                if edgeList[0].assemblyContext:
-                    activeOccurrenceName = edgeList[0].assemblyContext.name
+                if self.selectedFaces[missingFace][0].assemblyContext:
+                    activeOccurrenceName = self.selectedFaces[missingFace][0].assemblyContext.name
                 else:
-                    activeOccurrenceName = 'root'
+                    #activeOccurrenceName = 'root'
+                    activeOccurrenceName = self.selectedFaces[missingFace][0].body.name
                 del self.selectedFaces[missingFace]
-                del self.selectedOccurrences[activeOccurrenceName]
+                faces = self.selectedOccurrences.get(activeOccurrenceName, None)
+                if faces is None:
+                    del self.selectedOccurrences[activeOccurrenceName]
                 for edge in edgeList:
                     self.ui.activeSelections.removeByEntity(edge)
                 changedInput.commandInputs.itemById('select').hasFocus = True
@@ -327,12 +389,15 @@ class DogboneCommand(object):
         start = time.time()
 
         self.parseInputs(args.firingEvent.sender.commandInputs)
+        self.writeDefaults()
         self.createConsolidatedDogbones()
 
         if self.benchmark:
             dbUtils.messageBox("Benchmark: {:.02f} sec processing {} edges".format(
                 time.time() - start, len(self.edges)))
 
+
+    ################################################################################        
     def onValidate(self, args):
         cmd = adsk.core.ValidateInputsEventArgs.cast(args)
         cmd = args.firingEvent.sender
@@ -344,9 +409,9 @@ class DogboneCommand(object):
             elif input.id == 'circDiameter':
                 if input.value <= 0:
                     args.areInputsValid = False
-#==============================================================================
-#  Routine gets called with every mouse movement, if a commandInput select is active                   
-#==============================================================================
+    #==============================================================================
+    #  Routine gets called with every mouse movement, if a commandInput select is active                   
+    #==============================================================================
     def onFaceSelect(self, args):
         eventArgs = adsk.core.SelectionEventArgs.cast(args)
         # Check which selection input the event is firing for.
@@ -354,38 +419,50 @@ class DogboneCommand(object):
         if activeIn.id != 'select' and activeIn.id != 'edgeSelect':
             return # jump out if not dealing with either of the two selection boxes
 
+        textResult = activeIn.parentCommand.commandInputs.itemById('TextBox') #Debugging
+        textResult.text = ''
         if activeIn.id == 'select':
-#==============================================================================
-# processing activities when faces are being selected
-#        selection filter is limited to planar faces
-#        makes sure only valid occurrences and components are selectable
-#==============================================================================
+            #==============================================================================
+            # processing activities when faces are being selected
+            #        selection filter is limited to planar faces
+            #        makes sure only valid occurrences and components are selectable
+            #==============================================================================
+            textResult.text += 'code 1'
 
-            if not len( self.selectedOccurrences): #get out if the face selection list is empty
+            if not len( self.selectedOccurrences ): #get out if the face selection list is empty
                 eventArgs.isSelectable = True
+                textResult.text += 'code 2'
                 return
- 
+            textResult.text += 'code 3'
             if not eventArgs.selection.entity.assemblyContext:
 #                dealing with a root component body
+                textResult.text += 'num selected: ' + str(len(self.selectedFaces)) #Debugging
+
                 activeBodyName = eventArgs.selection.entity.body.name
                 try:            
                     primaryFaceId = self.selectedOccurrences[activeBodyName]
+                    textResult.text += ' fid_len' + str(len(primaryFaceId)) + ' ' 
                     primaryFace = self.selectedFaces[primaryFaceId[0]][0] #get actual BrepFace from its ID
                 except KeyError as e:
+                    textResult.text += 'code 4'
 #                    self.selectedFaces.clear()
 #                    self.selectedOccurrences.clear()
                     return
                 primaryFaceNormal = dbUtils.getFaceNormal(primaryFace)
+                textResult.text += 'code 5'
                 if primaryFaceNormal.isParallelTo(dbUtils.getFaceNormal(eventArgs.selection.entity)):
                     eventArgs.isSelectable = True
+                    textResult.text += 'code 6'
+                    #dbUtils.messageBox('Selectable!') 
                     return
                 eventArgs.isSelectable = False
+                textResult.text += 'code 7'
                 return
 #           End of root component face processing
-#==============================================================================
-# Start of occurrence face processing              
-#==============================================================================
-
+            #==============================================================================
+            # Start of occurrence face processing              
+            #==============================================================================
+            dbUtils.messageBox('Not here!') 
             activeOccurrence = eventArgs.selection.entity.assemblyContext
             activeOccurrenceName = activeOccurrence.name
             activeComponent = activeOccurrence.component
