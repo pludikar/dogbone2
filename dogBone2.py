@@ -350,10 +350,11 @@ class DogboneCommand(object):
             lookupEdge = lambda x: self.selectedEdges[x]
 
             changedSelectionList = [changedInput.selection(i).entity for i in range(changedInput.selectionCount)]
-            changedEdgeIdList = map(calcEdgeId, changedSelectionList) # creates list of 
-            changedEdge_FaceIdList = map(lookupEdge, changedEdgeIdList)
-            consolidatedFaceList = set(changedEdge_FaceIdList)
-#       find set of faces associated with all edges - if the face is missing, then all edges of the associated edges have been unselected
+            changedEdgeIdList = map(calcEdgeId, changedSelectionList)  # converts list of edges to a list of their edgeIds
+            changedEdge_FaceIdList = map(lookupEdge, changedEdgeIdList) # converts list of edges to a list of each edge's parent face
+            consolidatedFaceList = set(changedEdge_FaceIdList)  # reduces the list of faces to a set.  
+                                                                # It means that if a face is in the list, at least one edge in the face association exists
+                                                                # if the face is missing, then all edges of the associated edges have been unselected
             try:
                 missingFace = [face for face in self.selectedFaces.keys() if face not in consolidatedFaceList]
 #                will be [] if no missing face
@@ -380,10 +381,11 @@ class DogboneCommand(object):
 #TODO:         start of processing added edge
 #==============================================================================
       
-#==============================================================================
-# put the selections into variables that can be accessed by the main routine            
-#==============================================================================
     def parseInputs(self, inputs):
+        '''==============================================================================
+           put the selections into variables that can be accessed by the main routine            
+           ==============================================================================
+       '''
         inputs = {inp.id: inp for inp in inputs}
 
         self.circStr = inputs['circDiameter'].expression
@@ -429,10 +431,11 @@ class DogboneCommand(object):
             elif input.id == 'circDiameter':
                 if input.value <= 0:
                     args.areInputsValid = False
-    #==============================================================================
-    #  Routine gets called with every mouse movement, if a commandInput select is active                   
-    #==============================================================================
     def onFaceSelect(self, args):
+        '''==============================================================================
+            Routine gets called with every mouse movement, if a commandInput select is active                   
+           ==============================================================================
+       '''
         eventArgs = adsk.core.SelectionEventArgs.cast(args)
         # Check which selection input the event is firing for.
         activeIn = eventArgs.firingEvent.activeInput
