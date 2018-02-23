@@ -127,15 +127,35 @@ class DogboneCommand(object):
             cntrl.deleteMe()
 
     def onCreate(self, args:adsk.core.CommandCreatedEventArgs):
+        """
+        important persistent variables:        
+        self.selectedOccurrences  - Lookup dictionary 
+        key: activeOccurrenceName 
+        value: list of faceId
+        provides a quick lookup relationship between each occurrence and in particular which faces have been selected.  The 1st face in the list is always the primary face
+        
+        self.selectedFaces - Lookup dictionary 
+        key: faceId = str(face tempId:occurrenceNumber) 
+        value: [BrepFace, objectCollection of edges, reference point on nativeObject Face]
+        provides fast method of getting Brep entities associated with a faceId
+
+        self.selectedEdges - reverse lookup 
+        key: edgeId = str(edgeId:occurrenceNumber) 
+        value: str(face tempId:occurrenceNumber)
+        provides fast method of finding face that own an edge
+        """
+        
         inputs = adsk.core.CommandCreatedEventArgs.cast(args)
         self.edges = []
         self.faces = []
-        self.faceAssociations = {}
+#        self.faceAssociations = {}
         self.errorCount = 0
         self.faceSelections.clear()
-        self.selectedOccurrences = {}
-        self.selectedFaces = {}
-        self.selectedEdges = {}
+        
+        self.selectedOccurrences = {} 
+        self.selectedFaces = {} 
+        self.selectedEdges = {} 
+        
         argsCmd = adsk.core.Command.cast(args)
 
         inputs = adsk.core.CommandInputs.cast(inputs.command.commandInputs)
