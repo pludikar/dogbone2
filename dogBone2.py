@@ -132,17 +132,18 @@ class DogboneCommand(object):
         self.selectedOccurrences  - Lookup dictionary 
         key: activeOccurrenceName 
         value: list of faceId
-        provides a quick lookup relationship between each occurrence and in particular which faces have been selected.  The 1st face in the list is always the primary face
+            provides a quick lookup relationship between each occurrence and in particular which faces have been selected.  
+            The 1st face in the list is always the primary face
         
         self.selectedFaces - Lookup dictionary 
         key: faceId = str(face tempId:occurrenceNumber) 
         value: [BrepFace, objectCollection of edges, reference point on nativeObject Face]
-        provides fast method of getting Brep entities associated with a faceId
+            provides fast method of getting Brep entities associated with a faceId
 
         self.selectedEdges - reverse lookup 
         key: edgeId = str(edgeId:occurrenceNumber) 
         value: str(face tempId:occurrenceNumber)
-        provides fast method of finding face that own an edge
+            provides fast method of finding face that owns an edge
         """
         
         inputs = adsk.core.CommandCreatedEventArgs.cast(args)
@@ -202,6 +203,7 @@ class DogboneCommand(object):
         inputs.addBoolValueInput("benchmark", "Benchmark running time", True, "", self.benchmark)
         
         textBox = inputs.addTextBoxCommandInput('TextBox', '', '', 1, True)
+        textBox = inputs.addTextBoxCommandInput('Debug', '', '', 1, True)
 
         cmd = adsk.core.Command.cast(args.command)
         # Add handlers to this command.
@@ -212,40 +214,52 @@ class DogboneCommand(object):
         cmd.inputChanged.add(
             self.handlers.make_handler(adsk.core.InputChangedEventHandler, self.onChange))
 
-#==============================================================================
-#  routine to process any changed selections
-#  this is where selection and deselection management takes place
-#  also where eligible edges are determined
-#==============================================================================
+    #==============================================================================
+    #  routine to process any changed selections
+    #  this is where selection and deselection management takes place
+    #  also where eligible edges are determined
+    #==============================================================================
     def onChange(self, args:adsk.core.InputChangedEventArgs):
         
         changedInput = adsk.core.CommandInput.cast(args.input)
         if changedInput.id != 'select' and changedInput.id != 'edgeSelect':
             return
+        textResult = changedInput.parentCommand.commandInputs.itemById('Debug') #Debugging
+        textResult.text = "Occurr:%d SFaces: %s " % (len(self.selectedOccurrences), ', '.join(d for d in self.selectedFaces.keys()))
         if changedInput.id == 'select':
-#==============================================================================
-#            processing changes to face selections
-#==============================================================================
+
+            #==============================================================================
+            #            processing changes to face selections
+            #==============================================================================
             if len(self.selectedFaces) > changedInput.selectionCount:
                 
                 # a face has been removed
                 newFaceList = self.selectedFaces.keys()
+                
                 try:
                     faceOccurrenceId = changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]
+                    textResult.text += "code1:%s " % faceOccurrenceId
                 except OverflowError:  #Overflowed because all faces have been unselected - using the x/delete button
+                    textResult.text += "code1a "
                     self.selectedFaces.clear()
                     self.selectedEdges.clear()
+                    self.selectedOccurrences.clear()
                     changedInput.commandInputs.itemById('edgeSelect').clearSelection()
                     changedInput.commandInputs.itemById('edgeSelect').isVisible = False   
                     changedInput.commandInputs.itemById('select').hasFocus = True
-                   
+                    
                     return
                 except AttributeError:
                     faceOccurrenceId = changedInput.selection(changedInput.selectionCount-1).entity.body.name.split(':')[-1]
-
-                selectionList = [str(changedInput.selection(i).entity.tempId) +':'+ faceOccurrenceId for i in range(changedInput.selectionCount)]
-                missingFace = [select for select in newFaceList if select not in selectionList][0]
+                    textResult.text += "code2:%s " %changedInput.selection(changedInput.selectionCount-1).entity.body.name 
+               
+                #selectionList = [str(changedInput.selection(i).entity.tempId) +':'+ faceOccurrenceId for i in range(changedInput.selectionCount)]
+                selectionList = [str(changedInput.selection(i).entity.tempId) for i in range(changedInput.selectionCount)]
+                textResult.text += ', '.join(d for d in selectionList)
+                #missingFace = [select for select in newFaceList if select not in selectionList][0]
+                missingFace = next(iter(set(newFaceList) - {i for e in selectionList for i in newFaceList if e in i}))
                 edgeList = self.selectedFaces[missingFace][1]
+                textResult.text += "mf:%s edgelist_name:%s " % (missingFace,faceOccurrenceId)
                 changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
                 if self.selectedFaces[missingFace][0].assemblyContext:
                     activeOccurrenceName = self.selectedFaces[missingFace][0].assemblyContext.name
@@ -254,20 +268,34 @@ class DogboneCommand(object):
                     activeOccurrenceName = self.selectedFaces[missingFace][0].body.name
                 del self.selectedFaces[missingFace]
                 faces = self.selectedOccurrences.get(activeOccurrenceName, None)
+                textResult.text += 'code 3 '
                 if faces is None:
+                    textResult.text += "code4: %d " % len(self.selectedOccurrences)
                     del self.selectedOccurrences[activeOccurrenceName]
+                else:
+                    faces.remove(missingFace)
+                    if len(faces) == 0: 
+                        del self.selectedOccurrences[activeOccurrenceName]
+                    textResult.text += 'code 5: %d ' % len(self.selectedOccurrences)
+
                 for edge in edgeList:
                     self.ui.activeSelections.removeByEntity(edge)
+                    try:
+                        del self.selectedEdges[str(edge.tempId) + ":" + activeOccurrenceName]
+                        #textResult.text += str(edge.tempId) + ':' + activeOccurrenceName
+                    except KeyError:
+                        pass
+                        
                 changedInput.commandInputs.itemById('select').hasFocus = True
                 return
              
-#==============================================================================
-#             Face has been added - assume that the last selection entity is the one added
-#==============================================================================
+            #==============================================================================
+            #             Face has been added - assume that the last selection entity is the one added
+            #==============================================================================
             face = adsk.fusion.BRepFace.cast(changedInput.selection(changedInput.selectionCount -1).entity)
             changedInput.commandInputs.itemById('edgeSelect').isVisible = True  
             
-            changedEntity = changedInput.selection(changedInput.selectionCount-1).entity
+            changedEntity = face #changedInput.selection(changedInput.selectionCount-1).entity
             if changedEntity.assemblyContext:
                 activeOccurrenceName = changedEntity.assemblyContext.name
             else:
@@ -286,9 +314,10 @@ class DogboneCommand(object):
             self.selectedFaces[faceId] = [face, adsk.core.ObjectCollection.create(), face.nativeObject.pointOnFace if face.assemblyContext else face.pointOnFace]  # creates a collecton (of edges) associated with a faceId
             
             faceNormal = dbUtils.getFaceNormal(face)
-#==============================================================================
-#             this is where inside corner edges, dropping down from the face are processed
-#==============================================================================
+            
+            #==============================================================================
+            #             this is where inside corner edges, dropping down from the face are processed
+            #==============================================================================
             for edge in face.body.edges:
                 if edge.isDegenerate:
                     continue
@@ -466,7 +495,7 @@ class DogboneCommand(object):
                     primaryFaceId = self.selectedOccurrences[activeBodyName]
                     textResult.text += ' fid_len' + str(len(primaryFaceId)) + ' ' 
                     primaryFace = self.selectedFaces[primaryFaceId[0]][0] #get actual BrepFace from its ID
-                except KeyError as e:
+                except (KeyError, IndexError) as e:
                     textResult.text += 'code 4'
 #                    self.selectedFaces.clear()
 #                    self.selectedOccurrences.clear()
@@ -485,7 +514,7 @@ class DogboneCommand(object):
             #==============================================================================
             # Start of occurrence face processing              
             #==============================================================================
-            dbUtils.messageBox('Not here!') 
+            #dbUtils.messageBox('Not here!') 
             activeOccurrence = eventArgs.selection.entity.assemblyContext
             activeOccurrenceName = activeOccurrence.name
             activeComponent = activeOccurrence.component
