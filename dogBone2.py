@@ -669,7 +669,7 @@ class DogboneCommand(object):
                    comp = self.rootComp
                    occ = None
                    entityName = face.body.name
-    
+                comp = adsk.fusion.Component.cast(comp)
                 
                 if not face.isValid:
                    face = comp.findBRepUsingPoint(facePoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
@@ -710,27 +710,20 @@ class DogboneCommand(object):
                     
                     circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(centrePoint, self.circVal/2)  #as the centre is placed on midline endPoint, it automatically gets constrained
                     
-#                    lastProfile = sketch.profiles.count-1
-#                    profile = sketch.profiles.item(lastProfile)
-#                    
-#                    textPoint = midlineConstr1.endSketchPoint.geometry.copy()
-#                    
-#                    lineDim = sketch.sketchDimensions.addDistanceDimension(midlineConstr1.startSketchPoint,midlineConstr1.endSketchPoint, adsk.fusion.DimensionOrientations.AlignedDimensionOrientation, textPoint)
-#                    lineDim.parameter.expression = "dbToolDia/2*1.1"  #the 1.1 factor should be a parameter
-#                    
 #                    extentToEntity = dbUtils.findExtent(face, edge)
 #                    endExtentDef = adsk.fusion.ToEntityExtentDefinition.create(extentToEntity, False)
 #                    startExtentDef = adsk.fusion.ProfilePlaneStartDefinition.create()
 #                    profile = profile.createForAssemblyContext(occ) if face.assemblyContext else profile
 #                    
-#                    
-#                    extrInput = adsk.fusion.ExtrudeFeatureInput.cast(None)
-#                    extrInput = comp.features.extrudeFeatures.createInput(profile, adsk.fusion.FeatureOperations.CutFeatureOperation)
-#                    extrInput.creationOccurrence = occ
-#                    extrInput.participantBodies = [face.body]
-#                    extrInput.startExtent = startExtentDef
-#                    extrInput.setOneSideExtent(endExtentDef,adsk.fusion.FeatureOperations.CutFeatureOperation)
-#                    comp.features.extrudeFeatures.add(extrInput)
+                    holes =  comp.features.holeFeatures
+                    holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByReal(self.circVal))
+                    holeInput.creationOccurrence = occ
+                    holeInput.isDefaultDirection = True
+                    holeInput.tipAngle = adsk.core.ValueInput.createByString('180 deg')
+                    holeInput.participantBodies = [face.nativeObject.body]
+                    holeInput.setPositionByPoint(face.nativeObject, centrePoint)
+                    holeInput.setDistanceExtent(adsk.core.ValueInput.createByReal(edge.length))
+                    holes.add(holeInput)
                     
             endTlMarker = self.design.timeline.markerPosition-1
             if endTlMarker - startTlMarker >0:
