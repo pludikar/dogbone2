@@ -672,18 +672,21 @@ class DogboneCommand(object):
                 comp = adsk.fusion.Component.cast(comp)
                 
                 if not face.isValid:
-                   face = comp.findBRepUsingPoint(facePoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
+                   face = comp.findBRepUsingPoint(facePoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType, -1.0, False).item(0)
     
                 faceId = str(face.tempId) + ':' + entityName 
      
                 sketch = adsk.fusion.Sketch.cast(comp.sketches.add(face, occ))  #used for fault finding
                 
-                faceNormal = dbUtils.getFaceNormal(face.nativeObject)
+                faceNormal = dbUtils.getFaceNormal(face.nativeObject) if face.assemblyContext else dbUtils.getFaceNormal(face)
                                 
                 for edge in iter(edges):
     
                     if not face.isValid:
-                        face = comp.findBRepUsingPoint(facePoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0).createForAssemblyContext(occ)
+                        if face.assemblyContext:
+                            face = comp.findBRepUsingPoint(facePoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0).createForAssemblyContext(occ)
+                        else:
+                            face = comp.findBRepUsingPoint(facePoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0)
 #                        edge = edge.nativeObject
                         
                     if not edge.isValid:
@@ -697,9 +700,9 @@ class DogboneCommand(object):
                         pass
                     
                     startVertex = adsk.fusion.BRepVertex.cast(dbUtils.getVertexAtFace(face, edge))
-                    centrePoint = startVertex.nativeObject.geometry.copy()
+                    centrePoint = startVertex.nativeObject.geometry.copy() if startVertex.assemblyContext else startVertex.geometry.copy()
                     
-                    for edgeFace in edge.nativeObject.faces:
+                    for edgeFace in edge.nativeObject.faces if edge.assemblyContext else edge.faces:
                         dirVect = dbUtils.getFaceNormal(edgeFace).copy()
                         dirVect.normalize()
                         dirVect.scaleBy(radius/math.sqrt(2))  #ideally radius should be linked to parameters, 
@@ -707,8 +710,9 @@ class DogboneCommand(object):
                         centrePoint.translateBy(dirVect)
 
                     centrePoint = sketch.modelToSketchSpace(centrePoint)
+                    centrePoint = sketch.sketchPoints.add(centrePoint)
                     
-                    circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(centrePoint, self.circVal/2)  #as the centre is placed on midline endPoint, it automatically gets constrained
+#                    circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(centrePoint, self.circVal/2)  #Use for debugging
                     
 #                    extentToEntity = dbUtils.findExtent(face, edge)
 #                    endExtentDef = adsk.fusion.ToEntityExtentDefinition.create(extentToEntity, False)
@@ -720,8 +724,8 @@ class DogboneCommand(object):
                     holeInput.creationOccurrence = occ
                     holeInput.isDefaultDirection = True
                     holeInput.tipAngle = adsk.core.ValueInput.createByString('180 deg')
-                    holeInput.participantBodies = [face.nativeObject.body]
-                    holeInput.setPositionByPoint(face.nativeObject, centrePoint)
+                    holeInput.participantBodies = [face.nativeObject.body] if face.assemblyContext else [face.body]
+                    holeInput.setPositionBySketchPoint(centrePoint)  
                     holeInput.setDistanceExtent(adsk.core.ValueInput.createByReal(edge.length))
                     holes.add(holeInput)
                     
