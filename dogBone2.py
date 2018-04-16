@@ -314,7 +314,7 @@ class DogboneCommand(object):
             if sum(1 for face in self.selectedFaces.values() if face.selected) > changedInput.selectionCount:
                 
                 # a face has been removed
-                newFaceList = self.selectedFaces.keys()
+                #newFaceList = self.selectedFaces.keys()
                 
                 try:
                     faceOccurrenceId = changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]
@@ -338,7 +338,8 @@ class DogboneCommand(object):
                 selectionList = [str(changedInput.selection(i).entity.tempId) for i in range(changedInput.selectionCount)]
                 textResult.text += ', '.join(d for d in selectionList)
                 #missingFace = [select for select in newFaceList if select not in selectionList][0]
-                missingFace = next(iter(set(newFaceList) - {i for e in selectionList for i in newFaceList if e in i}))
+                #missingFace = next(iter(set(newFaceList) - {i for e in selectionList for i in newFaceList if e in i}))
+                missingFace = {k for k, v in self.selectedFaces.items() if v.selected and v.tempId not in selectionList}.pop()
                 textResult.text += "mf:%s edgelist_name:%s " % (missingFace,faceOccurrenceId)
                 changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
                 self.selectedFaces[missingFace].selectAll(False)
