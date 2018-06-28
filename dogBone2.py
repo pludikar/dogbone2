@@ -218,7 +218,7 @@ class DogboneCommand(object):
         key: activeOccurrenceName 
         value: list of selectedFaces
             provides a quick lookup relationship between each occurrence and in particular which faces have been selected.  
-            The 1st face in the list is always the primary face
+            The 1st selected face in the list is always the primary face
         
         self.selectedFaces - Lookup dictionary 
         key: faceId = str(face tempId:occurrenceNumber) 
@@ -306,52 +306,34 @@ class DogboneCommand(object):
     def onChange(self, args:adsk.core.InputChangedEventArgs):
         
         changedInput = adsk.core.CommandInput.cast(args.input)
-        textResult = changedInput.parentCommand.commandInputs.itemById('TextBox') #Debugging
-        textResult.text = ''
+        #textResult = changedInput.parentCommand.commandInputs.itemById('TextBox') #Debugging
         if changedInput.id != 'select' and changedInput.id != 'edgeSelect':
             return
-        textResult.text = "Occurr:%d SFaces: %s " % (len(self.selectedOccurrences), ', '.join(d for d, v in self.selectedFaces.items() if v.selected))
         if changedInput.id == 'select':
 
             #==============================================================================
             #            processing changes to face selections
             #==============================================================================
-            if sum(1 for face in self.selectedFaces.values() if face.selected) > changedInput.selectionCount:
-                
+            numSelectedFaces = sum(1 for face in self.selectedFaces.values() if face.selected) 
+            if numSelectedFaces > changedInput.selectionCount:               
                 # a face has been removed
-                #newFaceList = self.selectedFaces.keys()
-                
-                try:
-                    faceOccurrenceId = changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]
-                    textResult.text += "code1:%s " % faceOccurrenceId
-                except OverflowError:  #Overflowed because all faces have been unselected - using the x/delete button
-                    textResult.text += "code1a "
-                    
+
+                # If all faces are removed, just iterate through all
+                if numSelectedFaces == 0:                
                     for face in self.selectedFaces.values():
                         if face.selected:
                             face.selectAll(False)
                     changedInput.commandInputs.itemById('edgeSelect').clearSelection()
                     changedInput.commandInputs.itemById('edgeSelect').isVisible = False   
-                    changedInput.commandInputs.itemById('select').hasFocus = True
-                    
+                    changedInput.commandInputs.itemById('select').hasFocus = True                    
                     return
-                except AttributeError:
-                    faceOccurrenceId = changedInput.selection(changedInput.selectionCount-1).entity.body.name.split(':')[-1]
-                    textResult.text += "code2:%s " %changedInput.selection(changedInput.selectionCount-1).entity.body.name 
-               
-                #selectionList = [str(changedInput.selection(i).entity.tempId) +':'+ faceOccurrenceId for i in range(changedInput.selectionCount)]
+                
+                # Else find the missing face in selection
                 selectionList = [changedInput.selection(i).entity.tempId for i in range(changedInput.selectionCount)]
-                textResult.text += ', '.join(str(d) for d in selectionList)
-                #missingFace = [select for select in newFaceList if select not in selectionList][0]
-                #missingFace = next(iter(set(newFaceList) - {i for e in selectionList for i in newFaceList if e in i}))
                 missingFace = {k for k, v in self.selectedFaces.items() if v.selected and v.tempId not in selectionList}.pop()
-                textResult.text += "mf:%s edgelist_name:%s " % (missingFace,faceOccurrenceId)
                 changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
                 self.selectedFaces[missingFace].selectAll(False)
             
-                #for edge in self.selectedFaces[missingFace].edges:
-                #    self.ui.activeSelections.removeByEntity(edge.edge)
-                        
                 changedInput.commandInputs.itemById('select').hasFocus = True
                 return
              
@@ -399,65 +381,19 @@ class DogboneCommand(object):
         #         Processing changed edge selection            
         #==============================================================================
         if changedInput.id != 'edgeSelect':
-            textResult.text += 'not edge '
             return
-        textResult.text = 'edge! '
+
         if sum(1 for edge in self.selectedEdges.values() if edge.selected) > changedInput.selectionCount:
-            textResult.text += 'removing edge '
             #==============================================================================
             #             an edge has been removed
             #==============================================================================
-            # only need to do something if there are no edges left associated with a face
-            # have to work backwards edge to faceId, then remove face from selection if associated edges == 0
-            # This is complicated because all selected edges are mixed together, you can't simply find the edges that are associated
-            # if changedInput.selectionCount == 0:
-            #    # All the edges have been deleted (selectionCount - 1) is negative
-            #    changedInput.isVisible = False
-            #    changedInput.commandInputs.itemById('select').hasFocus = True
-            #    self.selectedOccurrences.clear()
-            #    self.selectedFaces.clear()
-            #    self.selectedEdges.clear()
-            #    self.ui.activeSelections.clear()
-            #    return
             
-            changedSelections = changedInput.selection
-
-            #lookupEdge = lambda x: self.selectedEdges[x]
-
             changedSelectionList = [changedInput.selection(i).entity for i in range(changedInput.selectionCount)]
             changedEdgeIdSet = set(map(calcId, changedSelectionList))  # converts list of edges to a list of their edgeIds
-            mys = set(self.selectedEdges.keys())
-            missingEdge = mys - changedEdgeIdSet
-            missingEdge = missingEdge.pop()
+            missingEdge = (set(self.selectedEdges.keys()) - changedEdgeIdSet).pop()
             self.selectedEdges[missingEdge].select(False)
-            #changedEdge_FaceIdList = map(lookupEdge, changedEdgeIdList) # converts list of edges to a list of each edge's parent face
-            #consolidatedFaceList = set(changedEdge_FaceIdList)  # reduces the list of faces to a set.
-                                                                # It means that if a face is in the list, at least one edge in the face association exists
-                                                                # if the face is missing, then all edges of the associated edges have been unselected
-            #try:
-            #    missingFace = [face for face in self.selectedFaces() if face not in consolidatedFaceList]
-            #    # will be [] if no missing face
-            #except Exception as e:
-            #    textResult.text += 'ae '
-            #    # get here because last edge of an associated face has been unselected
-            #    changedInput.commandInputs.itemById('select').hasFocus = True
-            #    self.ui.activeSelections.removeByEntity(self.selectedFaces[0])
-            #    changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
-            #    return
-            #if len(missingFace) :
-            #    textResult.text += 'a '
-            #    changedInput.commandInputs.itemById('select').hasFocus = True
-            #    self.ui.activeSelections.removeByEntity(self.selectedFaces[missingFace[0]][0])
-            #    changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
-            #    del self.selectedFaces[missingFace[0]]
-            #    return
-            #for faceId, face in self.selectedFaces.items():
-            #    textResult.text += 'b '
-            #    missingEdge = [edge for edge in iter(face[1]) if edge not in changedSelectionList]
-            #    if not missingEdge:
-            #        continue
-            #    face[1].removeByItem(missingEdge[0])
-            #    del self.selectedEdges[str(missingEdge[0].tempId) + ":" + faceId.split(':')[-1]]
+            # Note - let the user manually unselect the face if they want to choose a different face
+
             return
             # End of processing removed edge 
         else:
@@ -465,57 +401,8 @@ class DogboneCommand(object):
             #         Start of adding a selected edge
             #         Edge has been added - assume that the last selection entity is the one added
             #==============================================================================
-            textResult.text += 'start '
             edge = adsk.fusion.BRepEdge.cast(changedInput.selection(changedInput.selectionCount -1).entity)
-            changedEntity = edge
-            if changedEntity.assemblyContext:
-                activeOccurrenceName = changedEntity.assemblyContext.name
-            else:
-                activeOccurrenceName = changedEntity.body.name
-            occurrenceNumber = activeOccurrenceName.split(':')[-1]
-            edgeId = str(edge.tempId) + ':' + occurrenceNumber
-            self.selectedEdges[edgeId].select() # Get selectedFace then get selectedEdge, then call function
-            # No need to selected face - it had to have been selected for the edge to be selectable
-
-            # Find the face the edge belongs to
-#            for faceId in self.selectedOccurrences[activeOccurrenceName]:
-#                try:
-#                    textResult.text += 'aa '
-#                    if edge.geometry.curveType != adsk.core.Curve3DTypes.Line3DCurveType:
-#                        continue
-#                    textResult.text += 'bb '
-#                    face = self.selectedFaces[faceId][0]
-#                    if dbUtils.isEdgeAssociatedWithFace(face, edge):
-#                        textResult.text += 'a '
-#                        faceNormal = dbUtils.getFaceNormal(face)
-#                        vector = edge.startVertex.geometry.vectorTo(edge.endVertex.geometry)
-#                        if vector.isPerpendicularTo(faceNormal):
-#                            continue
-#                        textResult.text += 'b '
-#                        if edge.faces.item(0).geometry.objectType != adsk.core.Plane.classType():
-#                            continue
-#                        textResult.text += 'c '
-#                        if edge.faces.item(1).geometry.objectType != adsk.core.Plane.classType():
-#                            continue
-#                        textResult.text += 'd '
-#                        if edge.startVertex not in face.vertices:
-#                            if edge.endVertex not in face.vertices:
-#                                continue
-#                            else:
-#                                vector = edge.endVertex.geometry.vectorTo(edge.startVertex.geometry)
-#                        textResult.text += 'e '
-#                        if vector.dotProduct(faceNormal) >= 0:
-#                            continue
-#                        if dbUtils.getAngleBetweenFaces(edge) > math.pi:
-#                            continue
-#                        textResult.text += 'f '
-#                        self.selectedFaces[faceId][1].add(edge)
-#                        edgeId = str(edge.tempId)+':'+ occurrenceNumber
-#                        self.selectedEdges[edgeId] = faceId
-#                        textResult.text += "faceId:" + faceId + " edgeId:" + edgeId
-#                        break;
-#                except:
-#                    dbUtils.messageBox('Failed at edge:\n{}'.format(traceback.format_exc()))
+            self.selectedEdges[calcId(edge)].select() # Get selectedFace then get selectedEdge, then call function
 
 
     def parseInputs(self, inputs):
@@ -576,8 +463,6 @@ class DogboneCommand(object):
         eventArgs = adsk.core.SelectionEventArgs.cast(args)
         # Check which selection input the event is firing for.
         activeIn = eventArgs.firingEvent.activeInput
-        textResult = activeIn.parentCommand.commandInputs.itemById('Debug') #Debugging
-        textResult.text = ''        
         if activeIn.id != 'select' and activeIn.id != 'edgeSelect':
             return # jump out if not dealing with either of the two selection boxes
 
@@ -587,24 +472,15 @@ class DogboneCommand(object):
             #        selection filter is limited to planar faces
             #        makes sure only valid occurrences and components are selectable
             #==============================================================================
-            textResult.text += 'code 1'
 
             if not len( self.selectedOccurrences ): #get out if the face selection list is empty
                 eventArgs.isSelectable = True
-                textResult.text += 'code 2'
                 return
-            textResult.text += 'code 3'
             if not eventArgs.selection.entity.assemblyContext:
-#                dealing with a root component body
-                textResult.text += 'num selected: ' + str(len(self.selectedFaces)) #Debugging
+                # dealing with a root component body
 
                 activeBodyName = eventArgs.selection.entity.body.name
                 try:            
-                    textResult.text += 'code 3a'
-                    ####primaryFaceId = self.selectedOccurrences[activeBodyName]
-                    ####textResult.text += ' fid:' + str(primaryFaceId) + ' fid_len' + str(len(primaryFaceId)) + ' ' 
-                    #primaryFace = self.selectedFaces[primaryFaceId[0]][0] #get actual BrepFace from its ID
-                    ####primaryFace = self.selectedFaces[primaryFaceId[0]].face #get actual BrepFace from its ID
                     faces = self.selectedOccurrences[activeBodyName]
                     for face in faces:
                         if face.selected:
@@ -614,38 +490,28 @@ class DogboneCommand(object):
                         eventArgs.isSelectable = True
                         return
                 except (KeyError, IndexError) as e:
-                    textResult.text += 'code 4'
-#                    self.selectedFaces.clear()
-#                    self.selectedOccurrences.clear()
                     return
+
                 primaryFaceNormal = dbUtils.getFaceNormal(primaryFace.face)
-                textResult.text += 'code 5'
                 if primaryFaceNormal.isParallelTo(dbUtils.getFaceNormal(eventArgs.selection.entity)):
                     eventArgs.isSelectable = True
-                    textResult.text += 'code 6'
-                    #dbUtils.messageBox('Selectable!') 
                     return
                 eventArgs.isSelectable = False
-                textResult.text += 'code 7'
                 return
-#           End of root component face processing
+            # End of root component face processing
+            
             #==============================================================================
             # Start of occurrence face processing              
             #==============================================================================
-            #dbUtils.messageBox('Not here!') 
             activeOccurrence = eventArgs.selection.entity.assemblyContext
             activeOccurrenceName = activeOccurrence.name
             activeComponent = activeOccurrence.component
             
-            textResult.text += 'code 8'
-                 
-#           we got here because the face is either not in root or is on the existing selected list    
-#           at this point only need to check for duplicate component selection - Only one component allowed, to save on conflict checking
-            ####filtered = filter(lambda x: self.selectedFaces[x[0]].face.assemblyContext, self.selectedOccurrences.values())
+            # we got here because the face is either not in root or is on the existing selected list    
+            # at this point only need to check for duplicate component selection - Only one component allowed, to save on conflict checking
             try:
                 selectedComponentList = [x[0].face.assemblyContext.component for x in self.selectedOccurrences.values() if x[0].face.assemblyContext]
             except KeyError:
-               textResult.text += 'code 9'
                eventArgs.isSelectable = True
                return
 
@@ -657,15 +523,7 @@ class DogboneCommand(object):
                 eventArgs.isSelectable = False
                 return
                 
-            faceId = str(eventArgs.selection.entity.tempId)+":"+ activeOccurrenceName
-
-            #textResult = activeIn.parentCommand.commandInputs.itemById('TextBox') #Debugging
-            textResult.text += 'faceId: ' + str(faceId)+':'+str(eventArgs.isSelectable) #Debugging
-
-            
             try:            
-                ####primaryFaceId = self.selectedOccurrences[activeOccurrenceName]
-                ####primaryFace = self.selectedFaces[primaryFaceId[0]].face #get actual BrepFace from its ID
                 faces = self.selectedOccurrences[activeOccurrenceName]
                 for face in faces:
                     if face.selected:
@@ -675,8 +533,6 @@ class DogboneCommand(object):
                     eventArgs.isSelectable = True
                     return
             except KeyError:
-                ####self.selectedFaces.clear()
-                ####self.selectedOccurrences.clear()
                 return
             primaryFaceNormal = dbUtils.getFaceNormal(primaryFace.face)
             if primaryFaceNormal.isParallelTo(dbUtils.getFaceNormal(eventArgs.selection.entity)):
@@ -694,7 +550,6 @@ class DogboneCommand(object):
                 return
             selected = eventArgs.selection
             currentEdge = adsk.fusion.BRepEdge.cast(selected.entity)
-            textResult.text += 'Edgec1 ' + str({str(i.tempId) for i in currentEdge.faces})  + ' '
             activeOccurrence = eventArgs.selection.entity.assemblyContext
             if eventArgs.selection.entity.assemblyContext:
                 activeOccurrenceName = activeOccurrence.name
@@ -709,32 +564,6 @@ class DogboneCommand(object):
                 eventArgs.isSelectable = False
             return
 
-#            try:            
-#                primaryFace = self.selectedOccurrences[activeOccurrenceName][0].face #get actual BrepFace from its ID
-#            except KeyError:
-#                eventArgs.isSelectable = False
-#                return # means edge >primaryFaceId is not in the selection list - so we can escape 
-#            # Now check that we have a selected Face for the currentEdge, otherwise it's not selectable
-#            facesToCheckForSelectedEdgeSet = [selFace.face for selFace in self.selectedOccurrences[activeOccurrenceName]]
-#            if not any(dbutils.isEdgeAssociatedWithFace(face, currentEdge) for face in facesToCheckForSelectedEdgeSet):
-#                eventArgs.isSelectable = False
-#                return
-#            
-#            primaryFaceNormal = dbUtils.getFaceNormal(primaryFace)
-#            
-#            edgeVector = currentEdge.startVertex.geometry.vectorTo(currentEdge.endVertex.geometry)
-#            #==============================================================================
-#            #             make sure only edges perpendicular to the primary face can be selected
-#            #==============================================================================
-#            if not edgeVector.isParallelTo(primaryFaceNormal):
-#                eventArgs.isSelectable = False
-#                return
-#            eventArgs.isSelectable = True            
-#            return
-            
-        
-#        selected = eventArgs.selection
-#        selectedEntity = selected.entity
 
     @property
     def design(self):
@@ -795,10 +624,11 @@ class DogboneCommand(object):
         for occurrenceFace in self.selectedOccurrences.values():
             startTlMarker = self.design.timeline.markerPosition
 
-            for faceId in occurrenceFace:
-                face = self.selectedFaces[faceId][0]
-                edges = self.selectedFaces[faceId][1]
-                facePoint = self.selectedFaces[faceId][2]
+            for selectedFace in occurrenceFace:
+                face = selectedFace.face
+            #    face = self.selectedFaces[faceId][0]
+                #edges = self.selectedFaces[faceId][1]
+                #facePoint = self.selectedFaces[faceId][2]
     #            Holes created in Occurrences don't appear to work correctly 
     #            components created by mirroring will fail!! - they use the coordinate space of the original, but I haven't 
     #            figured out how to work around this.
@@ -807,43 +637,41 @@ class DogboneCommand(object):
                 if face.assemblyContext:
                    comp = face.assemblyContext.component
                    occ = face.assemblyContext  
-                   entityName = occ.name.split(':')[-1]
-    
+                   #entityName = occ.name.split(':')[-1]
+
                 else:
                    comp = self.rootComp
                    occ = None
-                   entityName = face.body.name
+                   #entityName = face.body.name
                 comp = adsk.fusion.Component.cast(comp)
                 
                 if not face.isValid:
-                   face = comp.findBRepUsingPoint(facePoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
-    
-                faceId = str(face.tempId) + ':' + entityName 
-     
+                   face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
+
                 sketch = adsk.fusion.Sketch.cast(comp.sketches.add(face, occ))  #used for fault finding
                 
-                faceNormal = dbUtils.getFaceNormal(face.nativeObject)
+                #faceNormal = dbUtils.getFaceNormal(face.nativeObject)
                                 
-                for edge in iter(edges):
-    
+                for selectedEdge in selectedFace.selectedEdges.values():
+
                     if not face.isValid:
-                        face = comp.findBRepUsingPoint(facePoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0).createForAssemblyContext(occ)
-#                        edge = edge.nativeObject
+                        face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0).createForAssemblyContext(occ)
+    #                        edge = edge.nativeObject
                         
-                    if not edge.isValid:
+                    if not selectedEdge.edge.isValid:
                         continue # edges that have been processed already will not be valid any more - at the moment this is easier than removing the 
     #                    affected edge from self.edges after having been processed
                         
                     try:
-                        if not dbUtils.isEdgeAssociatedWithFace(face, edge):
+                        if not dbUtils.isEdgeAssociatedWithFace(face, selectedEdge.edge):
                             continue  # skip if edge is not associated with the face currently being processed
                     except:
                         pass
                     
-                    startVertex = adsk.fusion.BRepVertex.cast(dbUtils.getVertexAtFace(face, edge))
+                    startVertex = adsk.fusion.BRepVertex.cast(dbUtils.getVertexAtFace(face, selectedEdge.edge))
                     centrePoint = startVertex.nativeObject.geometry.copy()
                     
-                    for edgeFace in edge.nativeObject.faces:
+                    for edgeFace in selectedEdge.edge.nativeObject.faces:
                         dirVect = dbUtils.getFaceNormal(edgeFace).copy()
                         dirVect.normalize()
                         dirVect.scaleBy(radius/math.sqrt(2))  #ideally radius should be linked to parameters, 
@@ -854,11 +682,11 @@ class DogboneCommand(object):
                     
                     circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(centrePoint, self.circVal/2)  #as the centre is placed on midline endPoint, it automatically gets constrained
                     
-#                    extentToEntity = dbUtils.findExtent(face, edge)
-#                    endExtentDef = adsk.fusion.ToEntityExtentDefinition.create(extentToEntity, False)
-#                    startExtentDef = adsk.fusion.ProfilePlaneStartDefinition.create()
-#                    profile = profile.createForAssemblyContext(occ) if face.assemblyContext else profile
-#                    
+    #                    extentToEntity = dbUtils.findExtent(face, edge)
+    #                    endExtentDef = adsk.fusion.ToEntityExtentDefinition.create(extentToEntity, False)
+    #                    startExtentDef = adsk.fusion.ProfilePlaneStartDefinition.create()
+    #                    profile = profile.createForAssemblyContext(occ) if face.assemblyContext else profile
+    #                    
                     holes =  comp.features.holeFeatures
                     holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByReal(self.circVal))
                     holeInput.creationOccurrence = occ
@@ -866,7 +694,8 @@ class DogboneCommand(object):
                     holeInput.tipAngle = adsk.core.ValueInput.createByString('180 deg')
                     holeInput.participantBodies = [face.nativeObject.body]
                     holeInput.setPositionByPoint(face.nativeObject, centrePoint)
-                    holeInput.setDistanceExtent(adsk.core.ValueInput.createByReal(edge.length))
+                    holeInput.setDistanceExtent(adsk.core.ValueInput.createByReal(selectedEdge.edge.length))
+
                     holes.add(holeInput)
                     
             endTlMarker = self.design.timeline.markerPosition-1
