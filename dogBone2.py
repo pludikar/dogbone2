@@ -33,6 +33,8 @@ FACE_ID = 'faceID'
 REV_ID = 'revId'
 ID = 'id'
 
+# Generate an edgeId or faceId from object
+calcId = lambda x: str(x.tempId) + ':' + x.assemblyContext.name.split(':')[-1] if x.assemblyContext else str(x.tempId) + ':' + x.body.name
 
 class SelectedEdge:
     def __init__(self, edge, edgeId, activeEdgeName, tempId, selectedFace):
@@ -214,7 +216,7 @@ class DogboneCommand(object):
         important persistent variables:        
         self.selectedOccurrences  - Lookup dictionary 
         key: activeOccurrenceName 
-        value: list of faceId
+        value: list of selectedFaces
             provides a quick lookup relationship between each occurrence and in particular which faces have been selected.  
             The 1st face in the list is always the primary face
         
@@ -308,7 +310,7 @@ class DogboneCommand(object):
         textResult.text = ''
         if changedInput.id != 'select' and changedInput.id != 'edgeSelect':
             return
-        textResult.text = "Occurr:%d SFaces: %s " % (len(self.selectedOccurrences), ', '.join(d for d in self.selectedFaces.keys()))
+        textResult.text = "Occurr:%d SFaces: %s " % (len(self.selectedOccurrences), ', '.join(d for d, v in self.selectedFaces.items() if v.selected))
         if changedInput.id == 'select':
 
             #==============================================================================
@@ -338,11 +340,11 @@ class DogboneCommand(object):
                     textResult.text += "code2:%s " %changedInput.selection(changedInput.selectionCount-1).entity.body.name 
                
                 #selectionList = [str(changedInput.selection(i).entity.tempId) +':'+ faceOccurrenceId for i in range(changedInput.selectionCount)]
-                selectionList = [str(changedInput.selection(i).entity.tempId) for i in range(changedInput.selectionCount)]
-                textResult.text += ', '.join(d for d in selectionList)
+                selectionList = [changedInput.selection(i).entity.tempId for i in range(changedInput.selectionCount)]
+                textResult.text += ', '.join(str(d) for d in selectionList)
                 #missingFace = [select for select in newFaceList if select not in selectionList][0]
                 #missingFace = next(iter(set(newFaceList) - {i for e in selectionList for i in newFaceList if e in i}))
-                missingFace = {k for k, v in self.selectedFaces.items() if (v.selected and v.tempId not in selectionList)}.pop()
+                missingFace = {k for k, v in self.selectedFaces.items() if v.selected and v.tempId not in selectionList}.pop()
                 textResult.text += "mf:%s edgelist_name:%s " % (missingFace,faceOccurrenceId)
                 changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
                 self.selectedFaces[missingFace].selectAll(False)
@@ -420,11 +422,10 @@ class DogboneCommand(object):
             
             changedSelections = changedInput.selection
 
-            calcEdgeId = lambda x: str(x.tempId) + ':' + x.assemblyContext.name.split(':')[-1] if x.assemblyContext else str(x.tempId) + ':' + x.body.name
             #lookupEdge = lambda x: self.selectedEdges[x]
 
             changedSelectionList = [changedInput.selection(i).entity for i in range(changedInput.selectionCount)]
-            changedEdgeIdSet = set(map(calcEdgeId, changedSelectionList))  # converts list of edges to a list of their edgeIds
+            changedEdgeIdSet = set(map(calcId, changedSelectionList))  # converts list of edges to a list of their edgeIds
             mys = set(self.selectedEdges.keys())
             missingEdge = mys - changedEdgeIdSet
             missingEdge = missingEdge.pop()
@@ -604,13 +605,20 @@ class DogboneCommand(object):
                     ####textResult.text += ' fid:' + str(primaryFaceId) + ' fid_len' + str(len(primaryFaceId)) + ' ' 
                     #primaryFace = self.selectedFaces[primaryFaceId[0]][0] #get actual BrepFace from its ID
                     ####primaryFace = self.selectedFaces[primaryFaceId[0]].face #get actual BrepFace from its ID
-                    primaryFace = self.selectedOccurrences[activeBodyName][0].face
+                    faces = self.selectedOccurrences[activeBodyName]
+                    for face in faces:
+                        if face.selected:
+                            primaryFace = face
+                            break
+                    else:
+                        eventArgs.isSelectable = True
+                        return
                 except (KeyError, IndexError) as e:
                     textResult.text += 'code 4'
 #                    self.selectedFaces.clear()
 #                    self.selectedOccurrences.clear()
                     return
-                primaryFaceNormal = dbUtils.getFaceNormal(primaryFace)
+                primaryFaceNormal = dbUtils.getFaceNormal(primaryFace.face)
                 textResult.text += 'code 5'
                 if primaryFaceNormal.isParallelTo(dbUtils.getFaceNormal(eventArgs.selection.entity)):
                     eventArgs.isSelectable = True
@@ -658,12 +666,19 @@ class DogboneCommand(object):
             try:            
                 ####primaryFaceId = self.selectedOccurrences[activeOccurrenceName]
                 ####primaryFace = self.selectedFaces[primaryFaceId[0]].face #get actual BrepFace from its ID
-                primaryFace = self.selectedOccurrences[activeOccurrenceName][0].face
+                faces = self.selectedOccurrences[activeOccurrenceName]
+                for face in faces:
+                    if face.selected:
+                        primaryFace = face
+                        break
+                else:
+                    eventArgs.isSelectable = True
+                    return
             except KeyError:
                 ####self.selectedFaces.clear()
                 ####self.selectedOccurrences.clear()
                 return
-            primaryFaceNormal = dbUtils.getFaceNormal(primaryFace)
+            primaryFaceNormal = dbUtils.getFaceNormal(primaryFace.face)
             if primaryFaceNormal.isParallelTo(dbUtils.getFaceNormal(eventArgs.selection.entity)):
                 eventArgs.isSelectable = True
                 return
@@ -688,34 +703,34 @@ class DogboneCommand(object):
 
             occurrenceNumber = activeOccurrenceName.split(':')[-1]
             edgeId = str(currentEdge.tempId) + ':' + occurrenceNumber
-            if (edgeId in self.selectedEdges):
+            if (edgeId in self.selectedEdges and self.selectedEdges[edgeId].selectedFace.selected):
                 eventArgs.isSelectable = True
             else:
                 eventArgs.isSelectable = False
             return
 
-            try:            
-                primaryFace = self.selectedOccurrences[activeOccurrenceName][0].face #get actual BrepFace from its ID
-            except KeyError:
-                eventArgs.isSelectable = False
-                return # means edge >primaryFaceId is not in the selection list - so we can escape 
-            # Now check that we have a selected Face for the currentEdge, otherwise it's not selectable
-            facesToCheckForSelectedEdgeSet = [selFace.face for selFace in self.selectedOccurrences[activeOccurrenceName]]
-            if not any(dbutils.isEdgeAssociatedWithFace(face, currentEdge) for face in facesToCheckForSelectedEdgeSet):
-                eventArgs.isSelectable = False
-                return
-            
-            primaryFaceNormal = dbUtils.getFaceNormal(primaryFace)
-            
-            edgeVector = currentEdge.startVertex.geometry.vectorTo(currentEdge.endVertex.geometry)
-            #==============================================================================
-            #             make sure only edges perpendicular to the primary face can be selected
-            #==============================================================================
-            if not edgeVector.isParallelTo(primaryFaceNormal):
-                eventArgs.isSelectable = False
-                return
-            eventArgs.isSelectable = True            
-            return
+#            try:            
+#                primaryFace = self.selectedOccurrences[activeOccurrenceName][0].face #get actual BrepFace from its ID
+#            except KeyError:
+#                eventArgs.isSelectable = False
+#                return # means edge >primaryFaceId is not in the selection list - so we can escape 
+#            # Now check that we have a selected Face for the currentEdge, otherwise it's not selectable
+#            facesToCheckForSelectedEdgeSet = [selFace.face for selFace in self.selectedOccurrences[activeOccurrenceName]]
+#            if not any(dbutils.isEdgeAssociatedWithFace(face, currentEdge) for face in facesToCheckForSelectedEdgeSet):
+#                eventArgs.isSelectable = False
+#                return
+#            
+#            primaryFaceNormal = dbUtils.getFaceNormal(primaryFace)
+#            
+#            edgeVector = currentEdge.startVertex.geometry.vectorTo(currentEdge.endVertex.geometry)
+#            #==============================================================================
+#            #             make sure only edges perpendicular to the primary face can be selected
+#            #==============================================================================
+#            if not edgeVector.isParallelTo(primaryFaceNormal):
+#                eventArgs.isSelectable = False
+#                return
+#            eventArgs.isSelectable = True            
+#            return
             
         
 #        selected = eventArgs.selection
