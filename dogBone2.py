@@ -655,7 +655,10 @@ class DogboneCommand(object):
                 for selectedEdge in selectedFace.selectedEdges.values():
 
                     if not face.isValid:
-                        face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0).createForAssemblyContext(occ)
+                        if occ:  #if the occ is Null then it's a rootComponent
+                            face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0).createForAssemblyContext(occ)
+                        else:
+                            face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
     #                        edge = edge.nativeObject
                         
                     if not selectedEdge.edge.isValid:
@@ -669,9 +672,14 @@ class DogboneCommand(object):
                         pass
                     
                     startVertex = adsk.fusion.BRepVertex.cast(dbUtils.getVertexAtFace(face, selectedEdge.edge))
-                    centrePoint = startVertex.nativeObject.geometry.copy()
+                    if occ:
+                        centrePoint = startVertex.nativeObject.geometry.copy()
+                    else:
+                        centrePoint = startVertex.geometry.copy()
+                        
+                    selectedEdgeFaces = selectedEdge.edge.nativeObject.faces if occ else selectedEdge.edge.faces
                     
-                    for edgeFace in selectedEdge.edge.nativeObject.faces:
+                    for edgeFace in selectedEdgeFaces:
                         dirVect = dbUtils.getFaceNormal(edgeFace).copy()
                         dirVect.normalize()
                         dirVect.scaleBy(radius/math.sqrt(2))  #ideally radius should be linked to parameters, 
@@ -692,8 +700,8 @@ class DogboneCommand(object):
                     holeInput.creationOccurrence = occ
                     holeInput.isDefaultDirection = True
                     holeInput.tipAngle = adsk.core.ValueInput.createByString('180 deg')
-                    holeInput.participantBodies = [face.nativeObject.body]
-                    holeInput.setPositionByPoint(face.nativeObject, centrePoint)
+                    holeInput.participantBodies = [face.nativeObject.body if occ else face.body]
+                    holeInput.setPositionByPoint(face.nativeObject if occ else face, centrePoint)
                     holeInput.setDistanceExtent(adsk.core.ValueInput.createByReal(selectedEdge.edge.length))
 
                     holes.add(holeInput)
