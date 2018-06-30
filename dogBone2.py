@@ -626,6 +626,7 @@ class DogboneCommand(object):
 
             for selectedFace in occurrenceFace:
                 face = selectedFace.face
+                holeList = []
             #    face = self.selectedFaces[faceId][0]
                 #edges = self.selectedFaces[faceId][1]
                 #facePoint = self.selectedFaces[faceId][2]
@@ -688,21 +689,32 @@ class DogboneCommand(object):
 
                     centrePoint = sketch.modelToSketchSpace(centrePoint)
                     
-                    circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(centrePoint, self.circVal/2)  #as the centre is placed on midline endPoint, it automatically gets constrained
+#                    circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(centrePoint, self.circVal/2)  #as the centre is placed on midline endPoint, it automatically gets constrained
+                    sketchPoint = sketch.sketchPoints.add(centrePoint)  #as the centre is placed on midline endPoint, it automatically gets constrained
+                    holeList.append([selectedEdge.edge.length, sketchPoint])
                     
+                depthList = set(map(lambda x: x[0], holeList))
     #                    extentToEntity = dbUtils.findExtent(face, edge)
     #                    endExtentDef = adsk.fusion.ToEntityExtentDefinition.create(extentToEntity, False)
     #                    startExtentDef = adsk.fusion.ProfilePlaneStartDefinition.create()
     #                    profile = profile.createForAssemblyContext(occ) if face.assemblyContext else profile
-    #                    
+    #               
+                for depth in depthList:
+                    pointCollection = adsk.core.ObjectCollection.create()
+                    for hole in filter(lambda h: h[0] == depth, holeList):
+                        pointCollection.add(hole[1])
+                    
+                    
                     holes =  comp.features.holeFeatures
                     holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByReal(self.circVal))
                     holeInput.creationOccurrence = occ
                     holeInput.isDefaultDirection = True
                     holeInput.tipAngle = adsk.core.ValueInput.createByString('180 deg')
                     holeInput.participantBodies = [face.nativeObject.body if occ else face.body]
-                    holeInput.setPositionByPoint(face.nativeObject if occ else face, centrePoint)
-                    holeInput.setDistanceExtent(adsk.core.ValueInput.createByReal(selectedEdge.edge.length))
+                    holeInput.setPositionBySketchPoints(pointCollection)
+#                    holeInput.setPositionByPoint(face.nativeObject if occ else face, centrePoint)
+#                    holeInput.setDistanceExtent(adsk.core.ValueInput.createByReal(selectedEdge.edge.length))
+                    holeInput.setDistanceExtent(adsk.core.ValueInput.createByReal(depth))
 
                     holes.add(holeInput)
                     
