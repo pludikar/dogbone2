@@ -417,6 +417,8 @@ class DogboneCommand(object):
         self.offStr = inputs['offset'].expression
         self.offVal = inputs['offset'].value
         self.benchmark = inputs['benchmark'].value
+        self.minimal = inputs['minimal'].value
+#        self.minimalPercentage = inputs['minimalPercentage'].value
 
         self.edges = []
         self.faces = []
@@ -683,7 +685,7 @@ class DogboneCommand(object):
                     for edgeFace in selectedEdgeFaces:
                         dirVect = dbUtils.getFaceNormal(edgeFace).copy()
                         dirVect.normalize()
-                        dirVect.scaleBy(radius/math.sqrt(2))  #ideally radius should be linked to parameters, 
+                        dirVect.scaleBy(radius/math.sqrt(2)*(1+self.minimalPercentage/100 if self.minimal else  1))  #ideally radius should be linked to parameters, 
                                                               # but hole start point still is the right quadrant
                         centrePoint.translateBy(dirVect)
 
