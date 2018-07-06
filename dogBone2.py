@@ -134,10 +134,11 @@ class DogboneCommand(object):
         self.edges = []
         self.benchmark = False
         self.errorCount = 0
-        self.boneDirection = "both"
+        self.boneDirection = "top"
         self.minimal = False
         self.minimalPercentage = 10.0
         self.faceSelections = adsk.core.ObjectCollection.create()
+        self.fromTop = False
 
         self.addingEdges = 0
 
@@ -156,6 +157,7 @@ class DogboneCommand(object):
             file.write('!boneDirection:' + self.boneDirection)
             file.write('!minimal:' + str(self.minimal))
             file.write('!minimalPercentage:' + str(self.minimalPercentage))
+            file.write('!fromTop:' + str(self.fromTop))
             #file.write('!limitParticipation:' + str(self.limitParticipation))
             #file.write('!minimumAngle:' + str(self.minimumAngle))
             #file.write('!maximumAngle:' + str(self.maximumAngle))
@@ -177,6 +179,8 @@ class DogboneCommand(object):
             elif var == 'boneDirection': self.boneDirection = val
             elif var == 'minimal': self.minimal = val == 'True'
             elif var == 'minimalPercentage': self.minimalPercentage = float(val)
+            elif var == 'fromTop': self.fromTop = val == 'False'
+
             #elif var == 'limitParticipation': self.limitParticipation = val == 'True'
             #elif var == 'minimumAngle': self.minimumAngle = int(val)
             #elif var == 'maximumAngle': self.maximumAngle = int(val)
@@ -273,16 +277,21 @@ class DogboneCommand(object):
             adsk.core.ValueInput.createByString(self.offStr))
         inp.tooltip = "Additional increase to the radius of the dogbone. (Probably don't want to do this with minimal dogbones)"
 
-        typelist = inputs.addDropDownCommandInput('typeList', ' Select Dogbone Direction', adsk.core.DropDownStyles.LabeledIconDropDownStyle)
-        typelist.listItems.add('Along Both Sides', self.boneDirection == 'both', '')
-        typelist.listItems.add('Along Longest', self.boneDirection == 'longest', '')
-        typelist.listItems.add('Along Shortest', self.boneDirection == 'shortest', '')
+        typelist = inputs.addDropDownCommandInput('typeList', ' Select Dogbone Style', adsk.core.DropDownStyles.LabeledIconDropDownStyle)
+        typelist.listItems.add('From Top', self.boneDirection == 'top', '')
+        typelist.listItems.add('From Selected', self.boneDirection == 'selected', '')
+#        typelist.listItems.add('Along Shortest', self.boneDirection == 'shortest', '')
         inp = inputs.addBoolValueInput("minimal", "Create Minimal Dogbones", True, "", self.minimal)
         inp.tooltip = "Offsets the dogbone circle inwards by (default) 10% to get a minimal dogbone. " \
                       "Workpieces will probably need to be hammered together.\n" \
                       "Only works with \"Along Both Sides\"."
-        inp.isVisible = (self.boneDirection == 'both')
+        inp.isVisible = (self.boneDirection == 'top')
 
+        inp = inputs.addBoolValueInput("fromTop", "Cut dogbones from Top", True, "", self.fromTop)
+        inp.tooltip = "Dogbones are cut from all the way from the top face to the bottom of the selected edge. \n" \
+                     "if not selected, dogbones will be cut from selected face to bottom of selected edge" 
+
+        inp.isVisible = True
 
         inputs.addBoolValueInput("benchmark", "Benchmark running time", True, "", self.benchmark)
         
@@ -418,6 +427,7 @@ class DogboneCommand(object):
         self.offVal = inputs['offset'].value
         self.benchmark = inputs['benchmark'].value
         self.minimal = inputs['minimal'].value
+        self.fromTop = inputs['fromTop'].value
 #        self.minimalPercentage = inputs['minimalPercentage'].value
 
         self.edges = []
@@ -626,6 +636,19 @@ class DogboneCommand(object):
         for occurrenceFace in self.selectedOccurrences.values():
             startTlMarker = self.design.timeline.markerPosition
 
+            if occurrenceFace[0].face.assemblyContext:
+                comp = occurrenceFace[0].face.assemblyContext.component
+                occ = occurrenceFace[0].face.assemblyContext  
+                #entityName = occ.name.split(':')[-1]
+            else:
+                   comp = self.rootComp
+                   occ = None
+
+            
+            if self.fromTop:
+                topFace = dbUtils.getTopFace(occurrenceFace[0].face)
+                sketch = adsk.fusion.Sketch.cast(comp.sketches.add(topFace, occ))  #used for fault finding
+
             for selectedFace in occurrenceFace:
                 face = selectedFace.face
                 holeList = []
@@ -637,21 +660,25 @@ class DogboneCommand(object):
     #            figured out how to work around this.
     #            face in an assembly context needs to be treated differently to a face that is at rootComponent level
     #        
-                if face.assemblyContext:
-                   comp = face.assemblyContext.component
-                   occ = face.assemblyContext  
-                   #entityName = occ.name.split(':')[-1]
-
-                else:
-                   comp = self.rootComp
-                   occ = None
+                
+#                if face.assemblyContext:
+#                   comp = face.assemblyContext.component
+#                   occ = face.assemblyContext  
+#                   #entityName = occ.name.split(':')[-1]
+#
+#                else:
+#                   comp = self.rootComp
+#                   occ = None
                    #entityName = face.body.name
                 comp = adsk.fusion.Component.cast(comp)
                 
                 if not face.isValid:
                    face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
 
-                sketch = adsk.fusion.Sketch.cast(comp.sketches.add(face, occ))  #used for fault finding
+                if self.fromTop:
+                    transformVector = dbUtils.getTranslateVectorBetweenFaces(topFace, face)
+                else:    
+                    sketch = adsk.fusion.Sketch.cast(comp.sketches.add(face, occ))
                 
                 #faceNormal = dbUtils.getFaceNormal(face.nativeObject)
                                 
@@ -688,28 +715,31 @@ class DogboneCommand(object):
                         dirVect.scaleBy(radius/math.sqrt(2)*(1+self.minimalPercentage/100 if self.minimal else  1))  #ideally radius should be linked to parameters, 
                                                               # but hole start point still is the right quadrant
                         centrePoint.translateBy(dirVect)
+                    if self.fromTop:
+                        centrePoint.translateBy(transformVector)
 
                     centrePoint = sketch.modelToSketchSpace(centrePoint)
                     
 #                    circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(centrePoint, self.circVal/2)  #as the centre is placed on midline endPoint, it automatically gets constrained
                     sketchPoint = sketch.sketchPoints.add(centrePoint)  #as the centre is placed on midline endPoint, it automatically gets constrained
-                    holeList.append([selectedEdge.edge.length, sketchPoint])
+                    length = (selectedEdge.edge.length + transformVector.length) if self.fromTop else selectedEdge.edge.length
+                    holeList.append([length, sketchPoint])
                     
-                depthList = set(map(lambda x: x[0], holeList))
+                depthList = set(map(lambda x: x[0], holeList))  #create a unique set of depths - using this in the filter will automatically group depths
     #                    extentToEntity = dbUtils.findExtent(face, edge)
     #                    endExtentDef = adsk.fusion.ToEntityExtentDefinition.create(extentToEntity, False)
     #                    startExtentDef = adsk.fusion.ProfilePlaneStartDefinition.create()
     #                    profile = profile.createForAssemblyContext(occ) if face.assemblyContext else profile
     #               
                 for depth in depthList:
-                    pointCollection = adsk.core.ObjectCollection.create()
+                    pointCollection = adsk.core.ObjectCollection.create()  #needed for the setPositionBySketchpoints
                     for hole in filter(lambda h: h[0] == depth, holeList):
                         pointCollection.add(hole[1])
                     
                     
                     holes =  comp.features.holeFeatures
                     holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByReal(self.circVal))
-                    holeInput.creationOccurrence = occ
+#                    holeInput.creationOccurrence = occ
                     holeInput.isDefaultDirection = True
                     holeInput.tipAngle = adsk.core.ValueInput.createByString('180 deg')
                     holeInput.participantBodies = [face.nativeObject.body if occ else face.body]

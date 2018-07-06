@@ -114,30 +114,45 @@ def getFaceNormal(face):
 def messageBox(*args):
     adsk.core.Application.get().userInterface.messageBox(*args)
 
-#def clearAttribs(name):
-#    app = adsk.core.Application.get()
-#    attribs = app.activeProduct.findAttributes("dogBoneGroup", name)
-#    for attrib in attribs:
-#        attrib.deleteMe()
-#
-#def list1(arg):
-#    return list(arg)        
-#
-#def clearFaceAttribs(design):
-#    attribs = design.findAttributes("dogBoneGroup","faceRef")
-#    if not attribs:
-#        return
-#    for attrib in attribs:
-#        attrib.deleteMe()
-#        
-#def setFaceAttrib(face):
-#    face.attributes.add("dogBoneGroup", "faceRef","1")
-#    
-#def refreshFace(design):
-#    attribs = design.findAttributes("dogBoneGroup","faceRef")
-#    if len(attribs) !=1:
-#        return False
-#    return attribs[0].parent
+
+def getTopFace(selectedFace):
+    normal = getFaceNormal(selectedFace)
+    refPlane = adsk.core.Plane.create(selectedFace.vertices.item(0).geometry, normal)
+    refLine = adsk.core.InfiniteLine3D.create(selectedFace.vertices.item(0).geometry, normal)
+    refPoint = refPlane.intersectWithLine(refLine)
+    faceList = []
+    body = adsk.fusion.BRepBody.cast(selectedFace.body)
+    for face in body.faces:
+        if not normal.isParallelTo(getFaceNormal(face)):
+            continue
+        facePlane = adsk.core.Plane.create(face.vertices.item(0).geometry, normal)
+        intersectionPoint = facePlane.intersectWithLine(refLine)
+#        distanceToRefPoint = refPoint.distanceTo(intersectionPoint)
+        directionVector = refPoint.vectorTo(intersectionPoint)
+        distance = directionVector.dotProduct(normal)
+ #       distanceToRefPoint = distanceToRefPoint* (-1 if direction <0 else 1)
+        faceList.append([face, distance])
+    sortedFaceList = sorted(faceList, key = lambda x: x[1])
+    top = sortedFaceList[-1]
+    return top[0]
+ 
+
+def getTranslateVectorBetweenFaces(fromFace, toFace):
+#   returns absolute distance
+
+    normal = getFaceNormal(fromFace)
+    if not normal.isParallelTo(getFaceNormal(fromFace)):
+        return False
+
+    fromFacePlane = adsk.core.Plane.create(fromFace.vertices.item(0).geometry, normal)
+    fromFaceLine = adsk.core.InfiniteLine3D.create(fromFace.vertices.item(0).geometry, normal)
+    fromFacePoint = fromFacePlane.intersectWithLine(fromFaceLine)
+    
+    toFacePlane = adsk.core.Plane.create(toFace.vertices.item(0).geometry, normal)
+    toFacePoint = toFacePlane.intersectWithLine(fromFaceLine)
+    translateVector = fromFacePoint.vectorTo(toFacePoint)
+    return translateVector
+        
     
 class HandlerHelper(object):
     def __init__(self):
