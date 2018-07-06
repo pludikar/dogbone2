@@ -20,9 +20,8 @@ from collections import defaultdict
 import adsk.core, adsk.fusion
 import math
 import traceback
-import uuid
-import re
 import os
+import json
 
 import time
 from . import dbutils as dbUtils
@@ -122,6 +121,8 @@ class DogboneCommand(object):
     COMMAND_ID = "dogboneBtn"
     
     faceAssociations = {}
+    defaultData = {}
+
 
     def __init__(self):
         self.app = adsk.core.Application.get()
@@ -145,41 +146,60 @@ class DogboneCommand(object):
         self.handlers = dbUtils.HandlerHelper()
 
         self.appPath = os.path.dirname(os.path.abspath(__file__))
+        
 
     def writeDefaults(self):
-        with open(os.path.join(self.appPath, 'defaults.dat'), 'w') as file:
-            file.write('offStr:' + self.offStr)
-            file.write('!offVal:' + str(self.offVal))
-            file.write('!circStr:' + self.circStr)
-            file.write('!circVal:' + str(self.circVal))
-            #file.write('!outputUnconstrainedGeometry:' + str(self.outputUnconstrainedGeometry))
-            file.write('!benchmark:' + str(self.benchmark))
-            file.write('!boneDirection:' + self.boneDirection)
-            file.write('!minimal:' + str(self.minimal))
-            file.write('!minimalPercentage:' + str(self.minimalPercentage))
-            file.write('!fromTop:' + str(self.fromTop))
-            #file.write('!limitParticipation:' + str(self.limitParticipation))
-            #file.write('!minimumAngle:' + str(self.minimumAngle))
-            #file.write('!maximumAngle:' + str(self.maximumAngle))
+
+        self.defaultData['offStr'] = self.offStr
+        self.defaultData['offVal'] = self.offVal
+        self.defaultData['circStr'] = self.circStr
+        self.defaultData['circVal'] = self.circVal
+            #self.defaultData['!outputUnconstrainedGeometry:' = str(self.outputUnconstrainedGeometry))
+        self.defaultData['benchmark'] = self.benchmark
+        self.defaultData['boneDirection'] = self.boneDirection
+        self.defaultData['minimal'] = self.minimal
+        self.defaultData['minimalPercentage'] = self.minimalPercentage
+        self.defaultData['fromTop'] = self.fromTop
+        
+        json_file = open(os.path.join(self.appPath, 'defaults.dat'), 'w', encoding='UTF-8')
+        json.dump(self.defaultData, json_file, ensure_ascii=False)
+        json_file.close()
+            #file.write('!limitParticipation:' = str(self.limitParticipation))
+            #file.write('!minimumAngle:' = str(self.minimumAngle))
+            #file.write('!maximumAngle:' = str(self.maximumAngle))
     
     def readDefaults(self): 
         if not os.path.isfile(os.path.join(self.appPath, 'defaults.dat')):
             return
-        with open(os.path.join(self.appPath, 'defaults.dat'), 'r') as file:
-            line = file.read()
+        json_file = open(os.path.join(self.appPath, 'defaults.dat'), 'r', encoding='UTF-8')
+        try:
+            self.defaultData = json.load(json_file)
+        except ValueError:
+            json_file.close()
+            json_file = open(os.path.join(self.appPath, 'defaults.dat'), 'w', encoding='UTF-8')
+            json.dump(self.defaultData, json_file, ensure_ascii=False)
+            return
 
-        for data in line.split('!'):
-            var, val = data.split(':')
-            if   var == 'offStr': self.offStr = val
-            elif var == 'offVal': self.offVal = float(val)
-            elif var == 'circStr': self.circStr = val
-            elif var == 'circVal': self.circVal = float(val)
-            #elif var == 'outputUnconstrainedGeometry': self.outputUnconstrainedGeometry = val == 'True'
-            elif var == 'benchmark': self.benchmark = val == 'True'
-            elif var == 'boneDirection': self.boneDirection = val
-            elif var == 'minimal': self.minimal = val == 'True'
-            elif var == 'minimalPercentage': self.minimalPercentage = float(val)
-            elif var == 'fromTop': self.fromTop = val == 'False'
+        json_file.close()
+        try:
+            self.offStr = self.defaultData['offStr']
+            self.offVal = self.defaultData['offVal']
+            self.circStr = self.defaultData['circStr']
+            self.circVal = self.defaultData['circVal']
+                #elif var == 'outputUnconstrainedGeometry': self.outputUnconstrainedGeometry = val == 'True'
+            self.benchmark = self.defaultData['benchmark']
+            self.boneDirection = self.defaultData['boneDirection']
+            self.minimal = self.defaultData['minimal']
+            self.minimalPercentage = self.defaultData['minimalPercentage']
+            self.fromTop = self.defaultData['fromTop']
+        except KeyError: 
+        #if there's a keyError - means file is corrupted - so, rewrite it with known existing defaultData - it will result in a valid dict, 
+        # but contents may have extra, superfluous  data
+            json_file = open(os.path.join(self.appPath, 'defaults.dat'), 'w', encoding='UTF-8')
+            json.dump(self.defaultData, json_file, ensure_ascii=False)
+            json_file.close()
+            return
+        
 
             #elif var == 'limitParticipation': self.limitParticipation = val == 'True'
             #elif var == 'minimumAngle': self.minimumAngle = int(val)
