@@ -14,6 +14,7 @@
 # The add-in will then create a dogbone with diamater equal to the tool diameter plus
 # twice the offset (as the offset is applied to the radius) at each selected edge.
 
+import logging
  
 from collections import defaultdict
 
@@ -32,11 +33,23 @@ FACE_ID = 'faceID'
 REV_ID = 'revId'
 ID = 'id'
 
+logger = logging.getLogger(__name__)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+log_handler = logging.FileHandler(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dogBone.log'), 'w')
+log_handler.setLevel(logging.DEBUG)
+log_handler.setFormatter(formatter)
+logger.setLevel(logging.DEBUG)
+logger.addHandler(log_handler)
+
+logger.info('Program initiated')
+
+
 # Generate an edgeId or faceId from object
 calcId = lambda x: str(x.tempId) + ':' + x.assemblyContext.name.split(':')[-1] if x.assemblyContext else str(x.tempId) + ':' + x.body.name
 
 class SelectedEdge:
     def __init__(self, edge, edgeId, activeEdgeName, tempId, selectedFace):
+        self.logger = logging.getLogger(__name__)
         self.edge = edge
         self.edgeId = edgeId
         self.activeEdgeName = activeEdgeName
@@ -50,6 +63,7 @@ class SelectedEdge:
 
 class SelectedFace:
     def __init__(self, dog, face, faceId, tempId, occurrenceName, refPoint, commandInputsEdgeSelect):
+        self.logger = logging.getLogger(__name__)
         self.dog = dog
         self.face = face # BrepFace
         self.faceId = faceId
@@ -125,6 +139,8 @@ class DogboneCommand(object):
 
 
     def __init__(self):
+        self.logger = logging.getLogger(__name__)
+        self.logger.debug('dogBone init')
         self.app = adsk.core.Application.get()
         self.ui = self.app.userInterface
 
@@ -149,6 +165,7 @@ class DogboneCommand(object):
         
 
     def writeDefaults(self):
+        self.logger.debug('config file write')
 
         self.defaultData['offStr'] = self.offStr
         self.defaultData['offVal'] = self.offVal
@@ -169,6 +186,7 @@ class DogboneCommand(object):
             #file.write('!maximumAngle:' = str(self.maximumAngle))
     
     def readDefaults(self): 
+        self.logger.debug('config file read')
         if not os.path.isfile(os.path.join(self.appPath, 'defaults.dat')):
             return
         json_file = open(os.path.join(self.appPath, 'defaults.dat'), 'r', encoding='UTF-8')
@@ -193,6 +211,8 @@ class DogboneCommand(object):
             self.minimalPercentage = self.defaultData['minimalPercentage']
             self.fromTop = self.defaultData['fromTop']
         except KeyError: 
+        
+            self.logger.exception('Key error on read config file')
         #if there's a keyError - means file is corrupted - so, rewrite it with known existing defaultData - it will result in a valid dict, 
         # but contents may have extra, superfluous  data
             json_file = open(os.path.join(self.appPath, 'defaults.dat'), 'w', encoding='UTF-8')
@@ -254,7 +274,8 @@ class DogboneCommand(object):
         value: str(face tempId:occurrenceNumber)
             provides fast method of finding face that owns an edge
         """
-        
+#        logging = logging.getLogger(__name__)
+        self.logger.debug('app created')        
         inputs = adsk.core.CommandCreatedEventArgs.cast(args)
         self.faces = []
 #        self.faceAssociations = {}
@@ -335,9 +356,12 @@ class DogboneCommand(object):
     def onChange(self, args:adsk.core.InputChangedEventArgs):
         
         changedInput = adsk.core.CommandInput.cast(args.input)
+        self.logger.debug('input changed- {}'.format(changedInput.id))
         #textResult = changedInput.parentCommand.commandInputs.itemById('TextBox') #Debugging
         if changedInput.id != 'select' and changedInput.id != 'edgeSelect':
             return
+
+        self.logger.debug('input changed- {}'.format(changedInput.id))
         if changedInput.id == 'select':
 
             #==============================================================================
@@ -439,6 +463,7 @@ class DogboneCommand(object):
            put the selections into variables that can be accessed by the main routine            
            ==============================================================================
        '''
+        self.logger.debug('Parsing inputs')
         inputs = {inp.id: inp for inp in inputs}
 
         self.circStr = inputs['circDiameter'].expression
@@ -611,6 +636,7 @@ class DogboneCommand(object):
 
     # The main algorithm
     def createConsolidatedDogbones(self):
+        self.logger.debug('entering create consolidated dogbones')
         self.errorCount = 0
         if not self.design:
             raise RuntimeError('No active Fusion design')
@@ -658,19 +684,26 @@ class DogboneCommand(object):
 
             if occurrenceFace[0].face.assemblyContext:
                 comp = occurrenceFace[0].face.assemblyContext.component
-                occ = occurrenceFace[0].face.assemblyContext  
+                occ = occurrenceFace[0].face.assemblyContext
+                self.logger.debug('processing component  = {}'.format(comp.name))
+                self.logger.debug('processing occurrence  = {}'.format(occ.name))
                 #entityName = occ.name.split(':')[-1]
             else:
-                   comp = self.rootComp
-                   occ = None
+               comp = self.rootComp
+               occ = None
+               self.logger.debug('processing Rootcomponent')
 
             
             if self.fromTop:
                 topFace = dbUtils.getTopFace(occurrenceFace[0].face)
+                self.logger.debug('Processing holes from top face - {}'.format(topFace.name))
                 sketch = adsk.fusion.Sketch.cast(comp.sketches.add(topFace, occ))  #used for fault finding
+                sketch.name = 'dogbone'
+                self.logger.debug('Added topFace sketch - {}'.format(sketch.name))
 
             for selectedFace in occurrenceFace:
                 face = selectedFace.face
+                self.logger.debug('Processing Face = {}'.format(face.tempId))
                 holeList = []
             #    face = self.selectedFaces[faceId][0]
                 #edges = self.selectedFaces[faceId][1]
@@ -681,30 +714,29 @@ class DogboneCommand(object):
     #            face in an assembly context needs to be treated differently to a face that is at rootComponent level
     #        
                 
-#                if face.assemblyContext:
-#                   comp = face.assemblyContext.component
-#                   occ = face.assemblyContext  
-#                   #entityName = occ.name.split(':')[-1]
-#
-#                else:
-#                   comp = self.rootComp
-#                   occ = None
-                   #entityName = face.body.name
+
                 comp = adsk.fusion.Component.cast(comp)
                 
                 if not face.isValid:
+                   self.logger.debug('revalidating Face') 
                    face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
 
                 if self.fromTop:
                     transformVector = dbUtils.getTranslateVectorBetweenFaces(topFace, face)
+                    self.logger.debug('creating transformVector to topFace = ({},{},{}) length = {}'.format(transformVector.x, transformVector.y, transformVector.z, transformVector.length))
                 else:    
                     sketch = adsk.fusion.Sketch.cast(comp.sketches.add(face, occ))
+                    sketch.name = 'dogbone'
+                    self.logger.debug('creating face plane sketch - {}'.format(sketch.name))
                 
                 #faceNormal = dbUtils.getFaceNormal(face.nativeObject)
                                 
                 for selectedEdge in selectedFace.selectedEdges.values():
+                    
+                    self.logger.debug('Processing edge - {}'.format(selectedEdge.edge.tempId))
 
                     if not face.isValid:
+                        self.logger.debug('Revalidating face')
                         if occ:  #if the occ is Null then it's a rootComponent
                             face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0).createForAssemblyContext(occ)
                         else:
@@ -744,6 +776,7 @@ class DogboneCommand(object):
                     sketchPoint = sketch.sketchPoints.add(centrePoint)  #as the centre is placed on midline endPoint, it automatically gets constrained
                     length = (selectedEdge.edge.length + transformVector.length) if self.fromTop else selectedEdge.edge.length
                     holeList.append([length, sketchPoint])
+                    self.logger.debug('hole added to list - length {}, ({},{},{})'.format(length, sketchPoint.geometry.x, sketchPoint.geometry.y, sketchPoint.geometry.z))
                     
                 depthList = set(map(lambda x: x[0], holeList))  #create a unique set of depths - using this in the filter will automatically group depths
     #                    extentToEntity = dbUtils.findExtent(face, edge)
@@ -752,6 +785,7 @@ class DogboneCommand(object):
     #                    profile = profile.createForAssemblyContext(occ) if face.assemblyContext else profile
     #               
                 for depth in depthList:
+                    self.logger.debug('processing holes at depth {}'.format(depth))
                     pointCollection = adsk.core.ObjectCollection.create()  #needed for the setPositionBySketchpoints
                     for hole in filter(lambda h: h[0] == depth, holeList):
                         pointCollection.add(hole[1])
@@ -769,22 +803,26 @@ class DogboneCommand(object):
                     holeInput.setDistanceExtent(adsk.core.ValueInput.createByReal(depth))
 
                     holes.add(holeInput)
+                    self.logger.debug('Holes added')
                     
             endTlMarker = self.design.timeline.markerPosition-1
             if endTlMarker - startTlMarker >0:
                 timelineGroup = self.design.timeline.timelineGroups.add(startTlMarker,endTlMarker)
                 timelineGroup.name = 'dogbone'
+            self.logger.debug('doEvents - allowing display to refresh')
             adsk.doEvents()
         if self.errorCount >0:
             dbUtils.messageBox('Reported errors:{}\nYou may not need to do anything, \nbut check holes have been created'.format(self.errorCount))
 
-                
-                
 
 dog = DogboneCommand()
 
 
 def run(context):
+    logging.basicConfig( level=logging.DEBUG)
+
+    logger.info('dogbone running')
+
     try:
         dog.addButton()
     except:
@@ -793,6 +831,7 @@ def run(context):
 
 def stop(context):
     try:
+        logger.removeHandler(log_handler)
         dog.removeButton()
     except:
         dbUtils.messageBox(traceback.format_exc())
