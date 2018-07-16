@@ -50,6 +50,7 @@ calcId = lambda x: str(x.tempId) + ':' + x.assemblyContext.name.split(':')[-1] i
 class SelectedEdge:
     def __init__(self, edge, edgeId, activeEdgeName, tempId, selectedFace):
         self.logger = logging.getLogger(__name__)
+        self.logger.debug('SelectedEdit init')
         self.edge = edge
         self.edgeId = edgeId
         self.activeEdgeName = activeEdgeName
@@ -64,6 +65,7 @@ class SelectedEdge:
 class SelectedFace:
     def __init__(self, dog, face, faceId, tempId, occurrenceName, refPoint, commandInputsEdgeSelect):
         self.logger = logging.getLogger(__name__)
+        self.logger.debug('SelectedFace init')
         self.dog = dog
         self.face = face # BrepFace
         self.faceId = faceId
@@ -158,6 +160,7 @@ class DogboneCommand(object):
         self.fromTop = False
 
         self.addingEdges = 0
+        self.parametric = True
 
         self.handlers = dbUtils.HandlerHelper()
 
@@ -177,6 +180,7 @@ class DogboneCommand(object):
         self.defaultData['minimal'] = self.minimal
         self.defaultData['minimalPercentage'] = self.minimalPercentage
         self.defaultData['fromTop'] = self.fromTop
+        self.defaultData['parametric'] = self.parametric
         
         json_file = open(os.path.join(self.appPath, 'defaults.dat'), 'w', encoding='UTF-8')
         json.dump(self.defaultData, json_file, ensure_ascii=False)
@@ -210,6 +214,7 @@ class DogboneCommand(object):
             self.minimal = self.defaultData['minimal']
             self.minimalPercentage = self.defaultData['minimalPercentage']
             self.fromTop = self.defaultData['fromTop']
+            self.parametric = self.defaultData['parametric']
         except KeyError: 
         
             self.logger.exception('Key error on read config file')
@@ -220,11 +225,6 @@ class DogboneCommand(object):
             json_file.close()
             return
         
-
-            #elif var == 'limitParticipation': self.limitParticipation = val == 'True'
-            #elif var == 'minimumAngle': self.minimumAngle = int(val)
-            #elif var == 'maximumAngle': self.maximumAngle = int(val)
-
     def addButton(self):
         # clean up any crashed instances of the button if existing
         try:
@@ -292,6 +292,11 @@ class DogboneCommand(object):
 
         self.readDefaults()
 
+        parametricInp = inputs.addBoolValueInput('parametric', 'Create Parametric Dogbones', True, '', self.parametric)
+        parametricInp.tooltip = "Static dogbones do not move with the underlying component geometry.\n " \
+                            "Parametric dogbones will automatically adjust position with changes to underlying geometry, but...\n"\
+                            "If corners are deleted, changed or new corners added - this app cannot be expected to resolve any resulting issues"
+
         selInput0 = inputs.addSelectionInput(
             'select', 'Face',
             'Select a face to apply dogbones to all internal corner edges')
@@ -306,8 +311,7 @@ class DogboneCommand(object):
         selInput1.addSelectionFilter('LinearEdges')
         selInput1.setSelectionLimits(1,0)
         selInput1.isVisible = False
-
-        
+                
         inp = inputs.addValueInput(
             'circDiameter', 'Tool Diameter', self.design.unitsManager.defaultLengthUnits,
             adsk.core.ValueInput.createByString(self.circStr))
@@ -473,7 +477,7 @@ class DogboneCommand(object):
         self.benchmark = inputs['benchmark'].value
         self.minimal = inputs['minimal'].value
         self.fromTop = inputs['fromTop'].value
-#        self.minimalPercentage = inputs['minimalPercentage'].value
+        self.parametric = inputs['parametric'].value
 
         self.edges = []
         self.faces = []
@@ -490,10 +494,57 @@ class DogboneCommand(object):
 
     def onExecute(self, args):
         start = time.time()
+        userParams = adsk.fusion.UserParameters.cast(self.design.userParameters)
+#set up parameters, so that changes can be easily made after dogbones have been inserted
+        if not userParams.itemByName('dbToolDia'):
+            dValIn = adsk.core.ValueInput.createByString(self.circStr)
+            dParameter = userParams.add('dbToolDia',dValIn, '', '')
+            dParameter.isFavorite = True
+        else:
+            uParam = userParams.itemByName('dbToolDia')
+            uParam.isFavorite = True
+            
+        if not userParams.itemByName('dbOffset'):
+            rValIn = adsk.core.ValueInput.createByString(self.offStr)
+            rParameter = userParams.add('dbOffset',rValIn, '', 'Do NOT change formula')
+        else:
+            uParam = userParams.itemByName('dbOffset')
+            uParam.comment = 'Do NOT change formula'
+
+        if not userParams.itemByName('dbRadius'):
+            rValIn = adsk.core.ValueInput.createByString('dbToolDia/2 + dbOffset')
+            rParameter = userParams.add('dbRadius',rValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
+        else:
+            uParam = userParams.itemByName('dbRadius')
+            uParam.expression = 'dbToolDia/2 + dbOffset'
+            uParam.comment = 'Do NOT change formula'
+
+        if not userParams.itemByName('dbMinPercent'):
+            rValIn = adsk.core.ValueInput.createByReal(self.minimalPercentage)
+            rParameter = userParams.add('dbMinPercent',rValIn, '', '')
+            rParameter.isFavorite = True
+        else:
+            uParam = userParams.itemByName('dbMinPercent')
+            uParam.value = self.minimalPercentage
+            uParam.comment = ''
+            uParam.isFavorite = True
+
+        if not userParams.itemByName('dbHoleOffset'):
+            oValIn = adsk.core.ValueInput.createByString('dbRadius / sqrt(2)' + (' * (1 + dbMinPercent/100)') if self.minimal else 'dbRadius / sqrt(2)')
+            oParameter = userParams.add('dbHoleOffset', oValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
+        else:
+            uParam = userParams.itemByName('dbHoleOffset')
+            uParam.expression = 'dbRadius / sqrt(2)' + (' * (1 + dbMinPercent/100)') if self.minimal else 'dbRadius / sqrt(2)'
+            uParam.comment = 'Do NOT change formula'
+
+        self.radius = userParams.itemByName('dbRadius').value
+        self.offset = adsk.core.ValueInput.createByString('dbOffset')
+        self.offset = adsk.core.ValueInput.createByReal(userParams.itemByName('dbHoleOffset').value)
 
         self.parseInputs(args.firingEvent.sender.commandInputs)
         self.writeDefaults()
-        self.createConsolidatedDogbones()
+        
+        self.createParametricDogbones() if self.parametric else self.createStaticDogbones()
 
         if self.benchmark:
             dbUtils.messageBox("Benchmark: {:.02f} sec processing {} edges".format(
@@ -634,50 +685,14 @@ class DogboneCommand(object):
     def originPlane(self):
         return self.rootComp.xZConstructionPlane if self.yUp else self.rootComp.xYConstructionPlane
 
-    # The main algorithm
-    def createConsolidatedDogbones(self):
-        self.logger.debug('entering create consolidated dogbones')
+    # The main algorithm for parametric dogbones
+    def createParametricDogbones(self):
+        self.logger.debug('entering create parametric dogbones')
         self.errorCount = 0
         if not self.design:
             raise RuntimeError('No active Fusion design')
         holeInput = adsk.fusion.HoleFeatureInput.cast(None)
-        userParams = adsk.fusion.UserParameters.cast(self.design.userParameters)
-#set up parameters, so that changes can be easily made after dogbones have been inserted
-        if not userParams.itemByName('dbToolDia'):
-            dValIn = adsk.core.ValueInput.createByString(self.circStr)
-            dParameter = userParams.add('dbToolDia',dValIn, self.design.unitsManager.defaultLengthUnits, '')
-            dParameter.isFavorite = True
-        else:
-            uParam = userParams.itemByName('dbToolDia')
-            uParam.isFavorite = True
-            
-        if not userParams.itemByName('dbOffset'):
-            rValIn = adsk.core.ValueInput.createByString(self.offStr)
-            rParameter = userParams.add('dbOffset',rValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
-        else:
-            uParam = userParams.itemByName('dbOffset')
-            uParam.comment = 'Do NOT change formula'
-
-        if not userParams.itemByName('dbRadius'):
-            rValIn = adsk.core.ValueInput.createByString('dbToolDia/2 + dbOffset')
-            rParameter = userParams.add('dbRadius',rValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
-        else:
-            uParam = userParams.itemByName('dbRadius')
-            uParam.expression = 'dbToolDia/2 + dbOffset'
-            uParam.comment = 'Do NOT change formula'
-
-
-        if not userParams.itemByName('dbHoleOffset'):
-            oValIn = adsk.core.ValueInput.createByString('dbRadius / sqrt(2)')
-            oParameter = userParams.add('dbHoleOffset', oValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
-        else:
-            uParam = userParams.itemByName('dbHoleOffset')
-            uParam.expression = 'dbRadius / sqrt(2)'
-            uParam.comment = 'Do NOT change formula'
-
-        radius = userParams.itemByName('dbRadius').value
-        offset = adsk.core.ValueInput.createByString('dbOffset')
-        offset = adsk.core.ValueInput.createByReal(userParams.itemByName('dbHoleOffset').value)
+        offsetByStr = adsk.core.ValueInput.createByString('dbHoleOffset')
         
         for occurrenceFace in self.selectedOccurrences.values():
             startTlMarker = self.design.timeline.markerPosition
@@ -704,16 +719,6 @@ class DogboneCommand(object):
             for selectedFace in occurrenceFace:
                 face = selectedFace.face
                 self.logger.debug('Processing Face = {}'.format(face.tempId))
-                holeList = []
-            #    face = self.selectedFaces[faceId][0]
-                #edges = self.selectedFaces[faceId][1]
-                #facePoint = self.selectedFaces[faceId][2]
-    #            Holes created in Occurrences don't appear to work correctly 
-    #            components created by mirroring will fail!! - they use the coordinate space of the original, but I haven't 
-    #            figured out how to work around this.
-    #            face in an assembly context needs to be treated differently to a face that is at rootComponent level
-    #        
-                
 
                 comp = adsk.fusion.Component.cast(comp)
                 
@@ -754,6 +759,17 @@ class DogboneCommand(object):
                         pass
                     
                     startVertex = adsk.fusion.BRepVertex.cast(dbUtils.getVertexAtFace(face, selectedEdge.edge))
+                    extentToEntity = dbUtils.findExtent(face, selectedEdge.edge)
+                    if not extentToEntity.isValid:
+                        self.logger.debug('To face invalid')
+
+                        adsk.doEvents()
+
+                    try:
+                        (edge1, edge2) = dbUtils.getCornerEdgesAtFace(face, selectedEdge.edge)
+                    except: 
+                        dbUtils.messageBox('Failed at findAdjecentFaceEdges:\n{}'.format(traceback.format_exc()))
+                    
                     if occ:
                         centrePoint = startVertex.nativeObject.geometry.copy()
                     else:
@@ -764,7 +780,124 @@ class DogboneCommand(object):
                     for edgeFace in selectedEdgeFaces:
                         dirVect = dbUtils.getFaceNormal(edgeFace).copy()
                         dirVect.normalize()
-                        dirVect.scaleBy(radius/math.sqrt(2)*(1+self.minimalPercentage/100 if self.minimal else  1))  #ideally radius should be linked to parameters, 
+                        dirVect.scaleBy(self.radius/math.sqrt(2)*(1+self.minimalPercentage/100 if self.minimal else  1))  #ideally radius should be linked to parameters, 
+                                                              # but hole start point still is the right quadrant
+                        centrePoint.translateBy(dirVect)
+                    if self.fromTop:
+                        centrePoint.translateBy(transformVector)
+
+#                    centrePoint = sketch.modelToSketchSpace(centrePoint)
+                    
+#                    sketchPoint = sketch.sketchPoints.add(sketch.modelToSketchSpace(centrePoint))  #as the centre is placed on midline endPoint, it automatically gets constrained
+
+                    holes =  comp.features.holeFeatures
+                    holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByString('dbToolDia'))
+#                    holeInput.creationOccurrence = occ #This needs to be uncommented once AD fixes component copy issue!!
+                    holeInput.isDefaultDirection = True
+                    holeInput.tipAngle = adsk.core.ValueInput.createByString('180 deg')
+#                    holeInput.participantBodies = [face.nativeObject.body if occ else face.body]  #Restore this once AD fixes occurrence bugs
+                    holeInput.participantBodies = [face.nativeObject.body]
+#                    holeInput.setPositionByPlaneAndOffsets(face, centrePoint, edge1, self.offset, edge2, self.offset) e#Restore this once AD fixes occurrence bugs
+                    
+                    holeInput.setPositionByPlaneAndOffsets(face.nativeObject, centrePoint, edge1.nativeObject, offsetByStr, edge2.nativeObject, offsetByStr)
+                    holeInput.setOneSideToExtent(extentToEntity,False)
+                    self.logger.debug('hole added to list - ({},{},{})'.format(centrePoint.x, centrePoint.y, centrePoint.z))
+ 
+                    holes.add(holeInput)
+                    
+            endTlMarker = self.design.timeline.markerPosition-1
+            if endTlMarker - startTlMarker >0:
+                timelineGroup = self.design.timeline.timelineGroups.add(startTlMarker,endTlMarker)
+                timelineGroup.name = 'dogbone'
+            self.logger.debug('doEvents - allowing display to refresh')
+            adsk.doEvents()
+        if self.errorCount >0:
+            dbUtils.messageBox('Reported errors:{}\nYou may not need to do anything, \nbut check holes have been created'.format(self.errorCount))
+
+    def createStaticDogbones(self):
+        self.logger.debug('entering create static dogbones')
+        self.errorCount = 0
+        if not self.design:
+            raise RuntimeError('No active Fusion design')
+        holeInput = adsk.fusion.HoleFeatureInput.cast(None)
+        
+        for occurrenceFace in self.selectedOccurrences.values():
+            startTlMarker = self.design.timeline.markerPosition
+
+            if occurrenceFace[0].face.assemblyContext:
+                comp = occurrenceFace[0].face.assemblyContext.component
+                occ = occurrenceFace[0].face.assemblyContext
+                self.logger.debug('processing component  = {}'.format(comp.name))
+                self.logger.debug('processing occurrence  = {}'.format(occ.name))
+                #entityName = occ.name.split(':')[-1]
+            else:
+               comp = self.rootComp
+               occ = None
+               self.logger.debug('processing Rootcomponent')
+
+            
+            if self.fromTop:
+                topFace = dbUtils.getTopFace(occurrenceFace[0].face)
+                self.logger.debug('Processing holes from top face - {}'.format(topFace.name))
+                sketch = adsk.fusion.Sketch.cast(comp.sketches.add(topFace, occ))  #used for fault finding
+                sketch.name = 'dogbone'
+                self.logger.debug('Added topFace sketch - {}'.format(sketch.name))
+
+            for selectedFace in occurrenceFace:
+                if len(selectedFace.selectedEdges.values()) <1:
+                    self.logger.debug('Face has no edges')
+                    continue 
+                face = selectedFace.face
+                self.logger.debug('Processing Face = {}'.format(face.tempId))
+                holeList = []                
+
+                comp = adsk.fusion.Component.cast(comp)
+                
+                if not face.isValid:
+                   self.logger.debug('revalidating Face') 
+                   face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
+
+                if self.fromTop:
+                    transformVector = dbUtils.getTranslateVectorBetweenFaces(topFace, face)
+                    self.logger.debug('creating transformVector to topFace = ({},{},{}) length = {}'.format(transformVector.x, transformVector.y, transformVector.z, transformVector.length))
+                else:    
+                    sketch = adsk.fusion.Sketch.cast(comp.sketches.add(face, occ))
+                    sketch.name = 'dogbone'
+                    self.logger.debug('creating face plane sketch - {}'.format(sketch.name))
+                
+                for selectedEdge in selectedFace.selectedEdges.values():
+                    
+                    self.logger.debug('Processing edge - {}'.format(selectedEdge.edge.tempId))
+
+                    if not face.isValid:
+                        self.logger.debug('Revalidating face')
+                        if occ:  #if the occ is Null then it's a rootComponent
+                            face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0).createForAssemblyContext(occ)
+                        else:
+                            face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
+                        
+                    if not selectedEdge.edge.isValid:
+                        continue # edges that have been processed already will not be valid any more - at the moment this is easier than removing the 
+    #                    affected edge from self.edges after having been processed
+                        
+                    try:
+                        if not dbUtils.isEdgeAssociatedWithFace(face, selectedEdge.edge):
+                            continue  # skip if edge is not associated with the face currently being processed
+                    except:
+                        pass
+                    
+                    startVertex = adsk.fusion.BRepVertex.cast(dbUtils.getVertexAtFace(face, selectedEdge.edge))
+                    if occ:
+                        centrePoint = startVertex.nativeObject.geometry.copy()
+                    else:
+                        centrePoint = startVertex.geometry.copy()
+                        
+                    selectedEdgeFaces = selectedEdge.edge.nativeObject.faces if occ else selectedEdge.edge.faces
+                    
+                    for edgeFace in selectedEdgeFaces:
+                        dirVect = dbUtils.getFaceNormal(edgeFace).copy()
+                        dirVect.normalize()
+                        dirVect.scaleBy(self.radius/math.sqrt(2)*(1+self.minimalPercentage/100 if self.minimal else  1))  #ideally radius should be linked to parameters, 
                                                               # but hole start point still is the right quadrant
                         centrePoint.translateBy(dirVect)
                     if self.fromTop:
@@ -772,34 +905,25 @@ class DogboneCommand(object):
 
                     centrePoint = sketch.modelToSketchSpace(centrePoint)
                     
-#                    circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(centrePoint, self.circVal/2)  #as the centre is placed on midline endPoint, it automatically gets constrained
                     sketchPoint = sketch.sketchPoints.add(centrePoint)  #as the centre is placed on midline endPoint, it automatically gets constrained
                     length = (selectedEdge.edge.length + transformVector.length) if self.fromTop else selectedEdge.edge.length
                     holeList.append([length, sketchPoint])
                     self.logger.debug('hole added to list - length {}, ({},{},{})'.format(length, sketchPoint.geometry.x, sketchPoint.geometry.y, sketchPoint.geometry.z))
                     
                 depthList = set(map(lambda x: x[0], holeList))  #create a unique set of depths - using this in the filter will automatically group depths
-    #                    extentToEntity = dbUtils.findExtent(face, edge)
-    #                    endExtentDef = adsk.fusion.ToEntityExtentDefinition.create(extentToEntity, False)
-    #                    startExtentDef = adsk.fusion.ProfilePlaneStartDefinition.create()
-    #                    profile = profile.createForAssemblyContext(occ) if face.assemblyContext else profile
-    #               
+
                 for depth in depthList:
                     self.logger.debug('processing holes at depth {}'.format(depth))
                     pointCollection = adsk.core.ObjectCollection.create()  #needed for the setPositionBySketchpoints
                     for hole in filter(lambda h: h[0] == depth, holeList):
                         pointCollection.add(hole[1])
                     
-                    
                     holes =  comp.features.holeFeatures
                     holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByReal(self.circVal))
-#                    holeInput.creationOccurrence = occ
                     holeInput.isDefaultDirection = True
                     holeInput.tipAngle = adsk.core.ValueInput.createByString('180 deg')
                     holeInput.participantBodies = [face.nativeObject.body if occ else face.body]
                     holeInput.setPositionBySketchPoints(pointCollection)
-#                    holeInput.setPositionByPoint(face.nativeObject if occ else face, centrePoint)
-#                    holeInput.setDistanceExtent(adsk.core.ValueInput.createByReal(selectedEdge.edge.length))
                     holeInput.setDistanceExtent(adsk.core.ValueInput.createByReal(depth))
 
                     holes.add(holeInput)
@@ -813,7 +937,6 @@ class DogboneCommand(object):
             adsk.doEvents()
         if self.errorCount >0:
             dbUtils.messageBox('Reported errors:{}\nYou may not need to do anything, \nbut check holes have been created'.format(self.errorCount))
-
 
 dog = DogboneCommand()
 
