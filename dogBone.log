@@ -1,38 +1,44 @@
-2018-07-16 08:34:05,884 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - INFO - Program initiated
-2018-07-16 08:34:05,884 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - dogBone init
-2018-07-16 08:34:05,890 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - INFO - dogbone running
-2018-07-16 08:34:12,212 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - app created
-2018-07-16 08:34:12,212 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - config file read
-2018-07-16 08:34:12,917 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - input changed- select
-2018-07-16 08:34:12,918 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - input changed- select
-2018-07-16 08:34:12,919 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - SelectedFace init
-2018-07-16 08:34:12,941 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - SelectedEdit init
-2018-07-16 08:34:12,948 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - SelectedEdit init
-2018-07-16 08:34:13,002 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - SelectedEdit init
-2018-07-16 08:34:13,009 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - SelectedEdit init
-2018-07-16 08:34:13,012 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - SelectedEdit init
-2018-07-16 08:34:13,016 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - SelectedEdit init
-2018-07-16 08:34:14,201 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Parsing inputs
-2018-07-16 08:34:14,202 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - config file write
-2018-07-16 08:34:14,203 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - entering create parametric dogbones
-2018-07-16 08:34:14,204 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - processing component  = Component3
-2018-07-16 08:34:14,204 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - processing occurrence  = Component3:1
-2018-07-16 08:34:14,204 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Processing Face = 6427
-2018-07-16 08:34:14,263 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - creating face plane sketch - dogbone
-2018-07-16 08:34:14,264 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Processing edge - 6464
-2018-07-16 08:34:14,270 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - hole added to list - (2.8814671204600937,-49.57752098925194,10.0)
-2018-07-16 08:34:14,309 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Processing edge - 6469
-2018-07-16 08:34:14,317 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - hole added to list - (14.071553406687947,-47.03752090818962,10.0)
-2018-07-16 08:34:14,402 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Processing edge - 6480
-2018-07-16 08:34:14,402 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Revalidating face
-2018-07-16 08:34:14,413 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - hole added to list - (13.05555337426302,-39.88626605154984,10.0)
-2018-07-16 08:34:14,481 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Processing edge - 6481
-2018-07-16 08:34:14,481 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Revalidating face
-2018-07-16 08:34:14,491 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - hole added to list - (13.05555337426302,-49.57752098925194,10.0)
-2018-07-16 08:34:14,608 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Processing edge - 6485
-2018-07-16 08:34:14,609 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Revalidating face
-2018-07-16 08:34:14,620 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - hole added to list - (2.8814671204600937,-39.88626605154984,10.0)
-2018-07-16 08:34:14,726 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Processing edge - 6473
-2018-07-16 08:34:14,726 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Revalidating face
-2018-07-16 08:34:14,734 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - hole added to list - (14.071553406687947,-43.97543488136118,10.0)
-2018-07-16 08:34:14,998 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - doEvents - allowing display to refresh
+2018-07-16 21:58:31,218 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Parsing inputs
+2018-07-16 21:58:31,219 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - config file write
+2018-07-16 21:58:31,221 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - entering create parametric dogbones
+2018-07-16 21:58:31,222 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - processing component  = Component3
+2018-07-16 21:58:31,222 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - processing occurrence  = Component3:1
+2018-07-16 21:58:31,235 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Processing holes from top face - Component3:1
+2018-07-16 21:58:31,289 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Added topFace sketch - dogbone
+2018-07-16 21:58:31,289 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Processing Face = 6409
+2018-07-16 21:58:31,291 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - creating transformVector to topFace = (0.0,0.0,8.0) length = 8.0
+2018-07-16 21:58:31,291 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Processing edge - 6452
+2018-07-16 21:58:31,297 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint = (2.6345100771306917,-42.68298420052735,2.0)
+2018-07-16 21:58:31,297 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint = (2.410003674103963,-42.68298420052735,2.0)
+2018-07-16 21:58:31,297 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint at topFace = (2.410003674103963,-42.68298420052735,10.0)
+2018-07-16 21:58:31,298 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - hole added to list - (2.410003674103963,-42.68298420052735,10.0)
+2018-07-16 21:58:31,333 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Processing edge - 12912
+2018-07-16 21:58:31,338 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint = (6.432735599895452,-46.98897238468683,2.0)
+2018-07-16 21:58:31,339 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint = (6.657242002922181,-46.98897238468683,2.0)
+2018-07-16 21:58:31,339 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint at topFace = (6.657242002922181,-46.98897238468683,10.0)
+2018-07-16 21:58:31,339 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - hole added to list - (6.657242002922181,-46.98897238468683,10.0)
+2018-07-16 21:58:31,388 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Processing edge - 6454
+2018-07-16 21:58:31,388 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Revalidating face
+2018-07-16 21:58:31,392 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint = (2.410003674103963,-47.792477967731486,2.0)
+2018-07-16 21:58:31,393 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint = (2.410003674103963,-47.567971564704756,2.0)
+2018-07-16 21:58:31,393 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint at topFace = (2.410003674103963,-47.567971564704756,10.0)
+2018-07-16 21:58:31,394 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - hole added to list - (2.410003674103963,-47.567971564704756,10.0)
+2018-07-16 21:58:31,432 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Processing edge - 12913
+2018-07-16 21:58:31,432 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Revalidating face
+2018-07-16 21:58:31,439 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint = (10.002314288675658,-47.21347878771356,2.0)
+2018-07-16 21:58:31,439 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint = (10.002314288675658,-46.98897238468683,2.0)
+2018-07-16 21:58:31,439 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint at topFace = (10.002314288675658,-46.98897238468683,10.0)
+2018-07-16 21:58:31,440 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - hole added to list - (10.002314288675658,-46.98897238468683,10.0)
+2018-07-16 21:58:31,480 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Processing edge - 12911
+2018-07-16 21:58:31,480 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Revalidating face
+2018-07-16 21:58:31,487 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint = (6.657242002922181,-43.39128175657211,2.0)
+2018-07-16 21:58:31,487 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint = (6.657242002922181,-43.61578815959884,2.0)
+2018-07-16 21:58:31,487 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint at topFace = (6.657242002922181,-43.61578815959884,10.0)
+2018-07-16 21:58:31,488 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - hole added to list - (6.657242002922181,-43.61578815959884,10.0)
+2018-07-16 21:58:31,540 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Processing edge - 12910
+2018-07-16 21:58:31,541 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Revalidating face
+2018-07-16 21:58:31,547 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint = (10.002314288675658,-43.39128175657211,2.0)
+2018-07-16 21:58:31,547 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint = (10.002314288675658,-43.61578815959884,2.0)
+2018-07-16 21:58:31,547 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint at topFace = (10.002314288675658,-43.61578815959884,10.0)
+2018-07-16 21:58:31,548 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - hole added to list - (10.002314288675658,-43.61578815959884,10.0)
+2018-07-16 21:58:31,593 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - doEvents - allowing display to refresh

@@ -33,15 +33,6 @@ FACE_ID = 'faceID'
 REV_ID = 'revId'
 ID = 'id'
 
-logger = logging.getLogger(__name__)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-log_handler = logging.FileHandler(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dogBone.log'), 'w')
-log_handler.setLevel(logging.DEBUG)
-log_handler.setFormatter(formatter)
-logger.setLevel(logging.DEBUG)
-logger.addHandler(log_handler)
-
-logger.info('Program initiated')
 
 
 # Generate an edgeId or faceId from object
@@ -161,6 +152,7 @@ class DogboneCommand(object):
 
         self.addingEdges = 0
         self.parametric = True
+        self.logging = True
 
         self.handlers = dbUtils.HandlerHelper()
 
@@ -181,6 +173,7 @@ class DogboneCommand(object):
         self.defaultData['minimalPercentage'] = self.minimalPercentage
         self.defaultData['fromTop'] = self.fromTop
         self.defaultData['parametric'] = self.parametric
+        self.defaultData['logging'] = self.logging
         
         json_file = open(os.path.join(self.appPath, 'defaults.dat'), 'w', encoding='UTF-8')
         json.dump(self.defaultData, json_file, ensure_ascii=False)
@@ -215,6 +208,7 @@ class DogboneCommand(object):
             self.minimalPercentage = self.defaultData['minimalPercentage']
             self.fromTop = self.defaultData['fromTop']
             self.parametric = self.defaultData['parametric']
+            self.logging = self.defaultData['logging']
         except KeyError: 
         
             self.logger.exception('Key error on read config file')
@@ -340,8 +334,14 @@ class DogboneCommand(object):
 
         inputs.addBoolValueInput("benchmark", "Benchmark running time", True, "", self.benchmark)
         
+        logInp = inputs.addBoolValueInput("logging", "create log file", True, "", self.logging)
+        logInp.tooltip = "creates a dogbone.log file. \n" \
+                     "location: " +  os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dogBone.log')
+
         textBox = inputs.addTextBoxCommandInput('TextBox', '', '', 1, True)
         textBox = inputs.addTextBoxCommandInput('Debug', '', '', 1, True)
+
+        
 
         cmd = adsk.core.Command.cast(args.command)
         # Add handlers to this command.
@@ -478,6 +478,7 @@ class DogboneCommand(object):
         self.minimal = inputs['minimal'].value
         self.fromTop = inputs['fromTop'].value
         self.parametric = inputs['parametric'].value
+        self.logging = inputs['logging'].value
 
         self.edges = []
         self.faces = []
@@ -494,14 +495,23 @@ class DogboneCommand(object):
 
     def onExecute(self, args):
         start = time.time()
+        self.logger = logging.getLogger(__name__)
+        log_handler = logging.FileHandler(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dogBone.log'), 'w')
+        log_handler.setLevel(logging.DEBUG)
+        log_handler.setFormatter(formatter)
+        self.logger.setLevel(logging.DEBUG)
+
+        self.logger.addHandler(log_handler)
+
         userParams = adsk.fusion.UserParameters.cast(self.design.userParameters)
 #set up parameters, so that changes can be easily made after dogbones have been inserted
         if not userParams.itemByName('dbToolDia'):
             dValIn = adsk.core.ValueInput.createByString(self.circStr)
-            dParameter = userParams.add('dbToolDia',dValIn, '', '')
+            dParameter = userParams.add('dbToolDia', dValIn, '', '')
             dParameter.isFavorite = True
         else:
             uParam = userParams.itemByName('dbToolDia')
+            uParam.expression = self.circStr
             uParam.isFavorite = True
             
         if not userParams.itemByName('dbOffset'):
@@ -509,6 +519,7 @@ class DogboneCommand(object):
             rParameter = userParams.add('dbOffset',rValIn, '', 'Do NOT change formula')
         else:
             uParam = userParams.itemByName('dbOffset')
+            uParam.expression = self.offStr
             uParam.comment = 'Do NOT change formula'
 
         if not userParams.itemByName('dbRadius'):
@@ -545,6 +556,8 @@ class DogboneCommand(object):
         self.writeDefaults()
         
         self.createParametricDogbones() if self.parametric else self.createStaticDogbones()
+
+        self.logger.removeHandler(log_handler)
 
         if self.benchmark:
             dbUtils.messageBox("Benchmark: {:.02f} sec processing {} edges".format(
@@ -711,7 +724,10 @@ class DogboneCommand(object):
             
             if self.fromTop:
                 topFace = dbUtils.getTopFace(occurrenceFace[0].face)
-                self.logger.debug('Processing holes from top face - {}'.format(topFace.name))
+                if occ:
+                    self.logger.debug('Processing holes from top face - {}'.format(topFace.assemblyContext.name))
+                else:
+                    self.logger.debug('Processing holes from top face - {}'.format(topFace.name))
                 sketch = adsk.fusion.Sketch.cast(comp.sketches.add(topFace, occ))  #used for fault finding
                 sketch.name = 'dogbone'
                 self.logger.debug('Added topFace sketch - {}'.format(sketch.name))
@@ -727,7 +743,7 @@ class DogboneCommand(object):
                    face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
 
                 if self.fromTop:
-                    transformVector = dbUtils.getTranslateVectorBetweenFaces(topFace, face)
+                    transformVector = dbUtils.getTranslateVectorBetweenFaces(face, topFace)
                     self.logger.debug('creating transformVector to topFace = ({},{},{}) length = {}'.format(transformVector.x, transformVector.y, transformVector.z, transformVector.length))
                 else:    
                     sketch = adsk.fusion.Sketch.cast(comp.sketches.add(face, occ))
@@ -777,14 +793,18 @@ class DogboneCommand(object):
                         
                     selectedEdgeFaces = selectedEdge.edge.nativeObject.faces if occ else selectedEdge.edge.faces
                     
+                    centreDistance = self.radius/math.sqrt(2)*(1+self.minimalPercentage/100 if self.minimal else  1)
+                    
                     for edgeFace in selectedEdgeFaces:
                         dirVect = dbUtils.getFaceNormal(edgeFace).copy()
                         dirVect.normalize()
-                        dirVect.scaleBy(self.radius/math.sqrt(2)*(1+self.minimalPercentage/100 if self.minimal else  1))  #ideally radius should be linked to parameters, 
+                        dirVect.scaleBy(centreDistance)  #ideally radius should be linked to parameters, 
                                                               # but hole start point still is the right quadrant
                         centrePoint.translateBy(dirVect)
+                        self.logger.debug('centrePoint = ({},{},{})'.format(centrePoint.x, centrePoint.y, centrePoint.z))
                     if self.fromTop:
                         centrePoint.translateBy(transformVector)
+                        self.logger.debug('centrePoint at topFace = ({},{},{})'.format(centrePoint.x, centrePoint.y, centrePoint.z))
 
 #                    centrePoint = sketch.modelToSketchSpace(centrePoint)
                     
@@ -811,6 +831,7 @@ class DogboneCommand(object):
                 timelineGroup.name = 'dogbone'
             self.logger.debug('doEvents - allowing display to refresh')
             adsk.doEvents()
+            
         if self.errorCount >0:
             dbUtils.messageBox('Reported errors:{}\nYou may not need to do anything, \nbut check holes have been created'.format(self.errorCount))
 
@@ -838,7 +859,11 @@ class DogboneCommand(object):
             
             if self.fromTop:
                 topFace = dbUtils.getTopFace(occurrenceFace[0].face)
-                self.logger.debug('Processing holes from top face - {}'.format(topFace.name))
+                if occ:
+                    self.logger.debug('Processing holes from top face - {}'.format(topFace.assemblyContext.name))
+                else:
+                    self.logger.debug('Processing holes from top face - {}'.format(topFace.name))
+                    
                 sketch = adsk.fusion.Sketch.cast(comp.sketches.add(topFace, occ))  #used for fault finding
                 sketch.name = 'dogbone'
                 self.logger.debug('Added topFace sketch - {}'.format(sketch.name))
@@ -858,7 +883,7 @@ class DogboneCommand(object):
                    face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
 
                 if self.fromTop:
-                    transformVector = dbUtils.getTranslateVectorBetweenFaces(topFace, face)
+                    transformVector = dbUtils.getTranslateVectorBetweenFaces(face, topFace)
                     self.logger.debug('creating transformVector to topFace = ({},{},{}) length = {}'.format(transformVector.x, transformVector.y, transformVector.z, transformVector.length))
                 else:    
                     sketch = adsk.fusion.Sketch.cast(comp.sketches.add(face, occ))
@@ -894,10 +919,12 @@ class DogboneCommand(object):
                         
                     selectedEdgeFaces = selectedEdge.edge.nativeObject.faces if occ else selectedEdge.edge.faces
                     
+                    centreDistance = self.radius/math.sqrt(2)*(1+self.minimalPercentage/100 if self.minimal else  1)
+                    
                     for edgeFace in selectedEdgeFaces:
                         dirVect = dbUtils.getFaceNormal(edgeFace).copy()
                         dirVect.normalize()
-                        dirVect.scaleBy(self.radius/math.sqrt(2)*(1+self.minimalPercentage/100 if self.minimal else  1))  #ideally radius should be linked to parameters, 
+                        dirVect.scaleBy(centreDistance)  #ideally radius should be linked to parameters, 
                                                               # but hole start point still is the right quadrant
                         centrePoint.translateBy(dirVect)
                     if self.fromTop:
@@ -935,10 +962,16 @@ class DogboneCommand(object):
                 timelineGroup.name = 'dogbone'
             self.logger.debug('doEvents - allowing display to refresh')
             adsk.doEvents()
+            
         if self.errorCount >0:
             dbUtils.messageBox('Reported errors:{}\nYou may not need to do anything, \nbut check holes have been created'.format(self.errorCount))
 
 dog = DogboneCommand()
+logger = logging.getLogger(__name__)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+log_handler = logging.FileHandler(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dogBone.log'), 'w')
+log_handler.setLevel(logging.DEBUG)
+log_handler.setFormatter(formatter)
 
 
 def run(context):
