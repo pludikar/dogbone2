@@ -133,7 +133,6 @@ class DogboneCommand(object):
 
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.logger.debug('dogBone init')
         self.app = adsk.core.Application.get()
         self.ui = self.app.userInterface
 
@@ -507,7 +506,7 @@ class DogboneCommand(object):
 #set up parameters, so that changes can be easily made after dogbones have been inserted
         if not userParams.itemByName('dbToolDia'):
             dValIn = adsk.core.ValueInput.createByString(self.circStr)
-            dParameter = userParams.add('dbToolDia', dValIn, '', '')
+            dParameter = userParams.add('dbToolDia', dValIn, self.design.unitsManager.defaultLengthUnits, '')
             dParameter.isFavorite = True
         else:
             uParam = userParams.itemByName('dbToolDia')
@@ -516,7 +515,7 @@ class DogboneCommand(object):
             
         if not userParams.itemByName('dbOffset'):
             rValIn = adsk.core.ValueInput.createByString(self.offStr)
-            rParameter = userParams.add('dbOffset',rValIn, '', 'Do NOT change formula')
+            rParameter = userParams.add('dbOffset',rValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
         else:
             uParam = userParams.itemByName('dbOffset')
             uParam.expression = self.offStr
@@ -557,7 +556,9 @@ class DogboneCommand(object):
         
         self.createParametricDogbones() if self.parametric else self.createStaticDogbones()
 
-        self.logger.removeHandler(log_handler)
+        for handler in self.logger.handlers:
+            self.logger.removeHandler(handler)
+        log_handler.close()
 
         if self.benchmark:
             dbUtils.messageBox("Benchmark: {:.02f} sec processing {} edges".format(
@@ -723,7 +724,8 @@ class DogboneCommand(object):
 
             
             if self.fromTop:
-                topFace = dbUtils.getTopFace(occurrenceFace[0].face)
+                topFace = adsk.fusion.BRepFace.cast(dbUtils.getTopFace(occurrenceFace[0].face))
+                topFaceRefPoint = topFace.pointOnFace
                 if occ:
                     self.logger.debug('Processing holes from top face - {}'.format(topFace.assemblyContext.name))
                 else:
@@ -776,10 +778,10 @@ class DogboneCommand(object):
                     
                     startVertex = adsk.fusion.BRepVertex.cast(dbUtils.getVertexAtFace(face, selectedEdge.edge))
                     extentToEntity = dbUtils.findExtent(face, selectedEdge.edge)
+                    self.logger.debug('extentToEntity - {}'.format(extentToEntity.isValid))
                     if not extentToEntity.isValid:
                         self.logger.debug('To face invalid')
 
-                        adsk.doEvents()
 
                     try:
                         (edge1, edge2) = dbUtils.getCornerEdgesAtFace(face, selectedEdge.edge)
@@ -802,6 +804,8 @@ class DogboneCommand(object):
                                                               # but hole start point still is the right quadrant
                         centrePoint.translateBy(dirVect)
                         self.logger.debug('centrePoint = ({},{},{})'.format(centrePoint.x, centrePoint.y, centrePoint.z))
+                    self.logger.debug('extentToEntity after vector Calc - {}'.format(extentToEntity.isValid))
+
                     if self.fromTop:
                         centrePoint.translateBy(transformVector)
                         self.logger.debug('centrePoint at topFace = ({},{},{})'.format(centrePoint.x, centrePoint.y, centrePoint.z))
@@ -809,6 +813,7 @@ class DogboneCommand(object):
 #                    centrePoint = sketch.modelToSketchSpace(centrePoint)
                     
 #                    sketchPoint = sketch.sketchPoints.add(sketch.modelToSketchSpace(centrePoint))  #as the centre is placed on midline endPoint, it automatically gets constrained
+                    holePlane = topFace.nativeObject if self.fromTop else face.nativeObject
 
                     holes =  comp.features.holeFeatures
                     holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByString('dbToolDia'))
@@ -819,18 +824,21 @@ class DogboneCommand(object):
                     holeInput.participantBodies = [face.nativeObject.body]
 #                    holeInput.setPositionByPlaneAndOffsets(face, centrePoint, edge1, self.offset, edge2, self.offset) e#Restore this once AD fixes occurrence bugs
                     
-                    holeInput.setPositionByPlaneAndOffsets(face.nativeObject, centrePoint, edge1.nativeObject, offsetByStr, edge2.nativeObject, offsetByStr)
-                    holeInput.setOneSideToExtent(extentToEntity,False)
+                    self.logger.debug('extentToEntity before setPositionByPlaneAndOffsets - {}'.format(extentToEntity.isValid))
+                    holeInput.setPositionByPlaneAndOffsets(holePlane, centrePoint, edge1.nativeObject, offsetByStr, edge2.nativeObject, offsetByStr)
+                    self.logger.debug('extentToEntity after setPositionByPlaneAndOffsets - {}'.format(extentToEntity.isValid))
+                    holeInput.setOneSideToExtent(extentToEntity, False)
                     self.logger.debug('hole added to list - ({},{},{})'.format(centrePoint.x, centrePoint.y, centrePoint.z))
  
                     holes.add(holeInput)
+            sketch.isComputeDeferred = False
                     
             endTlMarker = self.design.timeline.markerPosition-1
             if endTlMarker - startTlMarker >0:
                 timelineGroup = self.design.timeline.timelineGroups.add(startTlMarker,endTlMarker)
                 timelineGroup.name = 'dogbone'
             self.logger.debug('doEvents - allowing display to refresh')
-            adsk.doEvents()
+#            adsk.doEvents()
             
         if self.errorCount >0:
             dbUtils.messageBox('Reported errors:{}\nYou may not need to do anything, \nbut check holes have been created'.format(self.errorCount))
@@ -866,6 +874,7 @@ class DogboneCommand(object):
                     
                 sketch = adsk.fusion.Sketch.cast(comp.sketches.add(topFace, occ))  #used for fault finding
                 sketch.name = 'dogbone'
+                sketch.isComputeDeferred = True
                 self.logger.debug('Added topFace sketch - {}'.format(sketch.name))
 
             for selectedFace in occurrenceFace:
@@ -888,6 +897,7 @@ class DogboneCommand(object):
                 else:    
                     sketch = adsk.fusion.Sketch.cast(comp.sketches.add(face, occ))
                     sketch.name = 'dogbone'
+                    sketch.isComputeDeferred = True
                     self.logger.debug('creating face plane sketch - {}'.format(sketch.name))
                 
                 for selectedEdge in selectedFace.selectedEdges.values():
@@ -955,13 +965,14 @@ class DogboneCommand(object):
 
                     holes.add(holeInput)
                     self.logger.debug('Holes added')
+            sketch.isComputeDeferred = False
                     
             endTlMarker = self.design.timeline.markerPosition-1
             if endTlMarker - startTlMarker >0:
                 timelineGroup = self.design.timeline.timelineGroups.add(startTlMarker,endTlMarker)
                 timelineGroup.name = 'dogbone'
             self.logger.debug('doEvents - allowing display to refresh')
-            adsk.doEvents()
+#            adsk.doEvents()
             
         if self.errorCount >0:
             dbUtils.messageBox('Reported errors:{}\nYou may not need to do anything, \nbut check holes have been created'.format(self.errorCount))
