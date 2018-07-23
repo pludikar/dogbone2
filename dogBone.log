@@ -1,0 +1,24 @@
+2018-07-22 23:03:27,734 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Parsing inputs
+2018-07-22 23:03:27,734 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - self.fromTop = False
+2018-07-22 23:03:27,735 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - self.minimal = True
+2018-07-22 23:03:27,735 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - self.parametric = True
+2018-07-22 23:03:27,735 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - self.circStr = 0.25 in
+2018-07-22 23:03:27,736 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - self.circDiameter = 0.635
+2018-07-22 23:03:27,736 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - self.offStr = 0 cm
+2018-07-22 23:03:27,736 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - self.offVal = 0.0
+2018-07-22 23:03:27,736 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - self.benchmark = False
+2018-07-22 23:03:27,737 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - INFO - config file write
+2018-07-22 23:03:27,749 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - INFO - entering create parametric dogbones
+2018-07-22 23:03:27,749 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - processing Rootcomponent
+2018-07-22 23:03:27,750 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Processing Face = 292
+2018-07-22 23:03:27,765 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - creating face plane sketch - dogbone
+2018-07-22 23:03:27,765 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - Processing edge - 293
+2018-07-22 23:03:27,766 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - extentToEntity - True
+2018-07-22 23:03:27,768 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint = (5.080000032424928,0.7690429891825983,1.016)
+2018-07-22 23:03:27,768 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - centrePoint = (4.833042989095526,0.7690429891825983,1.016)
+2018-07-22 23:03:27,769 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - extentToEntity after vector Calc - True
+2018-07-22 23:03:27,769 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - extentToEntity before setPositionByPlaneAndOffsets - True
+2018-07-22 23:03:27,770 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - extentToEntity after setPositionByPlaneAndOffsets - True
+2018-07-22 23:03:27,770 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - INFO - hole added to list - (4.833042989095526,0.7690429891825983,1.016)
+Autodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - DEBUG - extentToEntity after setPositionByPlaneAndOffsets - True
+2018-07-22 23:03:27,770 - __main__C%3A%2FUsers%2FDad%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2Fdogbone2%2FdogBone2_py - INFO - hole added to list - (4.833042989095526,0.7690429891825983,1.016)
