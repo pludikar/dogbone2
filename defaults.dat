@@ -1,1 +1,1 @@
-{"boneDirection": "top", "circVal": 0.635, "minimalPercentage": 10.0, "circStr": "0.25 in", "parametric": true, "fromBottom": false, "benchmark": false, "fromTop": false, "offVal": 0.0, "logging": 10, "static": true, "offStr": "0 cm", "minimalPercent": 10.0, "minimal": true}
+{"boneDirection": "top", "circVal": 0.635, "minimalPercentage": 10.0, "circStr": "0.25 in", "parametric": true, "fromBottom": false, "benchmark": true, "fromTop": false, "offVal": 0.0, "logging": 10, "static": true, "offStr": "0 cm", "minimalPercent": 10.0, "minimal": false}

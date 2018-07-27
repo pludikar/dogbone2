@@ -1,4 +1,4 @@
-import math
+import math, logging
 import traceback
 
 import adsk.core
@@ -90,10 +90,12 @@ def getCornerEdgesAtFace(face, edge):
         startVertex = edge.endVertex 
     #edge has 2 adjacent faces - therefore the face that isn't from the 3 faces of startVertex, has to be the top face edges
 #    returnVal = [edge1 for edge1 in edge.startVertex.edges if edge1 in face.edges]
+    logger = logging.getLogger(__name__)
     returnVal = []
     for edge1 in startVertex.edges:
         if edge1 not in face.edges:
             continue
+        logger.debug('edge {} added to adjacent edge list'.format(edge1.tempId))
         returnVal.append(edge1)
     if len(returnVal)!= 2:
         raise NameError('returnVal len != 2')
@@ -134,11 +136,14 @@ def getTopFace(selectedFace):
         faceList.append([face, distance])
     sortedFaceList = sorted(faceList, key = lambda x: x[1])
     top = sortedFaceList[-1]
-    return top[0]
+    refPoint = top[0].nativeObject.pointOnFace if top[0].assemblyContext else top[0].pointOnFace
+    
+    return (top[0], refPoint)
  
 
 def getTranslateVectorBetweenFaces(fromFace, toFace):
 #   returns absolute distance
+    logger = logging.getLogger(__name__)
 
     normal = getFaceNormal(fromFace)
     if not normal.isParallelTo(getFaceNormal(fromFace)):
@@ -163,11 +168,16 @@ class HandlerHelper(object):
     def make_handler(self, handler_cls, notify_method, catch_exceptions=True):
         class _Handler(handler_cls):
             def notify(self, args):
+                self.logger = logging.getLogger(__name__)
                 if catch_exceptions:
                     try:
                         notify_method(args)
                     except:
                         messageBox('Failed:\n{}'.format(traceback.format_exc()))
+                        self.logger.exception('error termination')
+                        for handler in self.logger.handlers:
+                            handler.flush()
+                            handler.close()
                 else:
                     notify_method(args)
         h = _Handler()
