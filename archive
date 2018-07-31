@@ -1,0 +1,157 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Jul 30 20:29:36 2018
+
+@author: Peter
+"""
+
+    def createStaticDogbones_old(self):
+        self.logger.info('Creating static dogbones')
+        self.errorCount = 0
+        if not self.design:
+            raise RuntimeError('No active Fusion design')
+        holeInput = adsk.fusion.HoleFeatureInput.cast(None)
+        centreDistance = self.radius*(1+self.minimalPercent/100 if self.minimal else  1)
+        
+        for occurrenceFace in self.selectedOccurrences.values():
+            startTlMarker = self.design.timeline.markerPosition
+
+            if occurrenceFace[0].face.assemblyContext:
+                comp = occurrenceFace[0].face.assemblyContext.component
+                occ = occurrenceFace[0].face.assemblyContext
+                self.logger.info('processing component  = {}'.format(comp.name))
+                self.logger.info('processing occurrence  = {}'.format(occ.name))
+                #entityName = occ.name.split(':')[-1]
+            else:
+               comp = self.rootComp
+               occ = None
+               self.logger.info('processing Rootcomponent')
+
+            
+            if self.fromTop:
+                (topFace, topFaceRefPoint) = dbUtils.getTopFace(occurrenceFace[0].face)
+                if occ:
+                    self.logger.info('Processing holes from top face - {}'.format(topFace.assemblyContext.name))
+                else:
+                    self.logger.info('Processing holes from top face - {}'.format(topFace.name))
+                    
+                sketch = adsk.fusion.Sketch.cast(comp.sketches.add(topFace, occ))  #used for fault finding
+                sketch.name = 'dogbone'
+                sketch.isComputeDeferred = True
+                self.logger.debug('Added topFace sketch - {}'.format(sketch.name))
+
+            for selectedFace in occurrenceFace:
+                if len(selectedFace.selectedEdges.values()) <1:
+                    self.logger.debug('Face has no edges')
+                    continue 
+                face = selectedFace.face
+                holeList = []                
+
+                comp = adsk.fusion.Component.cast(comp)
+                
+                if not face.isValid:
+                    self.logger.debug('Revalidating face')
+                    if occ:  #if the occ is Null then it's a rootComponent
+                        face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0).createForAssemblyContext(occ)
+                    else:
+                        face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
+                self.logger.info('Processing Face = {}'.format(face.tempId))
+
+                if self.fromTop:
+                    self.logger.debug('topFace type {}'.format(type(topFace)))
+                    if not topFace.isValid:
+                       self.logger.debug('revalidating topFace') 
+                       topFace = comp.findBRepUsingPoint(topFaceRefPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
+                    self.logger.debug('topFace isValid = {}'.format(topFace.isValid))
+                    transformVector = dbUtils.getTranslateVectorBetweenFaces(face, topFace)
+                    self.logger.debug('creating transformVector to topFace = ({},{},{}) length = {}'.format(transformVector.x, transformVector.y, transformVector.z, transformVector.length))
+                else:    
+                    sketch = adsk.fusion.Sketch.cast(comp.sketches.add(face, occ))
+                    sketch.name = 'dogbone'
+                    sketch.isComputeDeferred = True
+                    self.logger.debug('creating face plane sketch - {}'.format(sketch.name))
+                
+                for selectedEdge in selectedFace.selectedEdges.values():
+                    
+                    self.logger.debug('Processing edge - {}'.format(selectedEdge.edge.tempId))
+
+                    if not face.isValid:
+                        self.logger.debug('Revalidating face')
+                        if occ:  #if the occ is Null then it's a rootComponent
+                            face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0).createForAssemblyContext(occ)
+                        else:
+                            face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
+                        
+                    if not selectedEdge.edge.isValid:
+                        continue # edges that have been processed already will not be valid any more - at the moment this is easier than removing the 
+    #                    affected edge from self.edges after having been processed
+                        
+                    try:
+                        if not dbUtils.isEdgeAssociatedWithFace(face, selectedEdge.edge):
+                            continue  # skip if edge is not associated with the face currently being processed
+                    except:
+                        pass
+                    
+                    startVertex = adsk.fusion.BRepVertex.cast(dbUtils.getVertexAtFace(face, selectedEdge.edge))
+                    if occ:
+                        centrePoint = startVertex.nativeObject.geometry.copy()
+                    else:
+                        centrePoint = startVertex.geometry.copy()
+                        
+                    selectedEdgeFaces = selectedEdge.edge.nativeObject.faces if occ else selectedEdge.edge.faces
+                    
+                    dirVect = adsk.core.Vector3D.cast(dbUtils.getFaceNormal(selectedEdgeFaces[0]).copy())
+                    dirVect.add(dbUtils.getFaceNormal(selectedEdgeFaces[1]))
+                    dirVect.normalize()
+                    dirVect.scaleBy(centreDistance)  #ideally radius should be linked to parameters, 
+                                                              # but hole start point still is the right quadrant
+                    centrePoint.translateBy(dirVect)
+                    if self.fromTop:
+                        centrePoint.translateBy(transformVector)
+
+                    centrePoint = sketch.modelToSketchSpace(centrePoint)
+                    
+                    sketchPoint = sketch.sketchPoints.add(centrePoint)  #as the centre is placed on midline endPoint, it automatically gets constrained
+                    length = (selectedEdge.edge.length + transformVector.length) if self.fromTop else selectedEdge.edge.length
+                    holeList.append([length, sketchPoint])
+                    self.logger.info('hole added to list - length {}, ({},{},{})'.format(length, sketchPoint.geometry.x, sketchPoint.geometry.y, sketchPoint.geometry.z))
+                    
+                depthList = set(map(lambda x: x[0], holeList))  #create a unique set of depths - using this in the filter will automatically group depths
+
+                for depth in depthList:
+                    self.logger.debug('processing holes at depth {}'.format(depth))
+                    pointCollection = adsk.core.ObjectCollection.create()  #needed for the setPositionBySketchpoints
+                    holeCount = 0
+                    for hole in filter(lambda h: h[0] == depth, holeList):
+                        pointCollection.add(hole[1])
+                        holeCount+=1
+                    
+                    if not face.isValid:
+                        self.logger.debug('Revalidating face')
+                        if occ:  #if the occ is Null then it's a rootComponent
+                            face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0).createForAssemblyContext(occ)
+                        else:
+                            face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
+
+                    holes =  comp.features.holeFeatures
+                    holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByReal(self.circVal))
+                    holeInput.isDefaultDirection = True
+                    holeInput.tipAngle = adsk.core.ValueInput.createByString('180 deg')
+                    holeInput.participantBodies = [face.nativeObject.body if occ else face.body]
+                    holeInput.setPositionBySketchPoints(pointCollection)
+                    holeInput.setDistanceExtent(adsk.core.ValueInput.createByReal(depth))
+
+                    holes.add(holeInput)
+                    self.logger.info('{} Holes added'.format(holeCount))
+            sketch.isComputeDeferred = False
+                    
+            endTlMarker = self.design.timeline.markerPosition-1
+            if endTlMarker - startTlMarker >0:
+                timelineGroup = self.design.timeline.timelineGroups.add(startTlMarker,endTlMarker)
+                timelineGroup.name = 'dogbone'
+#            self.logger.debug('doEvents - allowing fusion to refresh')
+#            adsk.doEvents()
+            
+        if self.errorCount >0:
+            dbUtils.messageBox('Reported errors:{}\nYou may not need to do anything, \nbut check holes have been created'.format(self.errorCount))
+

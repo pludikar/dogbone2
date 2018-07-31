@@ -32,11 +32,14 @@ DOGBONEGROUP = 'dogBoneGroup'
 FACE_ID = 'faceID'
 REV_ID = 'revId'
 ID = 'id'
+DEBUGLEVEL = logging.NOTSET
 
 
 
 # Generate an edgeId or faceId from object
 calcId = lambda x: str(x.tempId) + ':' + x.assemblyContext.name.split(':')[-1] if x.assemblyContext else str(x.tempId) + ':' + x.body.name
+makeNative = lambda x: x.nativeObject if x.nativeObject else x
+reValidateFace = lambda comp, x: comp.findBRepUsingPoint(x, adsk.fusion.BRepEntityTypes.BRepFaceEntityType,-1.0 ,False ).item(0)
 
 class SelectedEdge:
     def __init__(self, edge, edgeId, activeEdgeName, tempId, selectedFace):
@@ -221,7 +224,15 @@ class DogboneCommand(object):
             json.dump(self.defaultData, json_file, ensure_ascii=False)
             json_file.close()
             return
-        
+            
+    def debugFace(self, face):
+        if self.logger.level < logging.DEBUG:
+            return
+        for edge in face.edges:
+            self.logger.debug('edge {}; startVertex: {}; endVertex: {}'.format(edge.tempId, edge.startVertex.geometry.asArray(), edge.endVertex.geometry.asArray()))
+
+        return
+
     def addButton(self):
         # clean up any crashed instances of the button if existing
         try:
@@ -360,8 +371,8 @@ class DogboneCommand(object):
         logDropDownInp.listItems.add('Notset', self.logging == 0)
         logDropDownInp.listItems.add('Debug', self.logging == 10)
         logDropDownInp.listItems.add('Info', self.logging == 20)
-        logDropDownInp.listItems.add('Warning', self.logging == 30)
-        logDropDownInp.listItems.add('Errors', self.logging == 40)
+#        logDropDownInp.listItems.add('Warning', self.logging == 30)
+#        logDropDownInp.listItems.add('Errors', self.logging == 40)
 
         cmd = adsk.core.Command.cast(args.command)
         # Add handlers to this command.
@@ -547,7 +558,7 @@ class DogboneCommand(object):
         start = time.time()
 
         self.initLogger()
-        self.logger.log(0, 'logging Level = {}', self.logger.level)
+        self.logger.log(0, 'logging Level = %(levelname)')
         self.parseInputs(args.firingEvent.sender.commandInputs)
         self.logHandler.setLevel(self.logging)
         self.logger.setLevel(self.logging)
@@ -774,25 +785,19 @@ class DogboneCommand(object):
                self.logger.debug('processing Rootcomponent')
 
             if self.fromTop:
-                (topFace, topFaceRefPoint) = dbUtils.getTopFace(occurrenceFace[0].face)
-                if occ:
-                    self.logger.info('Processing holes from top face - {}'.format(topFace.assemblyContext.name))
-                else:
-                    self.logger.info('Processing holes from top face - {}'.format(topFace.body.name))
+                (topFace, topFaceRefPoint) = dbUtils.getTopFace(makeNative(occurrenceFace[0].face))
+                self.logger.info('Processing holes from top face - {}'.format(topFace.body.name))
 
             for selectedFace in occurrenceFace:
                 if len(selectedFace.selectedEdges.values()) <1:
                     self.logger.debug('Face has no edges')
-                face = selectedFace.face
+                face = makeNative(selectedFace.face)
                 
                 comp = adsk.fusion.Component.cast(comp)
                 
                 if not face.isValid:
                     self.logger.debug('revalidating Face')
-                    if occ:
-                        face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0).createForAssemblyContext(occ)
-                    else:
-                        face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
+                    face = reValidateFace(comp, selectedFace.refPoint)
                 self.logger.debug('Processing Face = {}'.format(face.tempId))
               
                 #faceNormal = dbUtils.getFaceNormal(face.nativeObject)
@@ -800,7 +805,10 @@ class DogboneCommand(object):
                     self.logger.debug('topFace type {}'.format(type(topFace)))
                     if not topFace.isValid:
                        self.logger.debug('revalidating topFace') 
-                       topFace = comp.findBRepUsingPoint(topFaceRefPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
+                       topFace = reValidateFace(comp, topFaceRefPoint)
+
+                    topFace = makeNative(topFace)
+                       
                     self.logger.debug('topFace isValid = {}'.format(topFace.isValid))
                     transformVector = dbUtils.getTranslateVectorBetweenFaces(face, topFace)
                     self.logger.debug('creating transformVector to topFace = ({},{},{}) length = {}'.format(transformVector.x, transformVector.y, transformVector.z, transformVector.length))
@@ -811,40 +819,35 @@ class DogboneCommand(object):
 
                     if not face.isValid:
                         self.logger.debug('Revalidating face')
-                        if occ:  #if the occ is Null then it's a rootComponent
-                            face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0).createForAssemblyContext(occ)
-                        else:
-                            face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
-    #                        edge = edge.nativeObject
+                        face = reValidateFace(comp, selectedFace.refPoint)
 
                     if not selectedEdge.edge.isValid:
                         continue # edges that have been processed already will not be valid any more - at the moment this is easier than removing the 
     #                    affected edge from self.edges after having been processed
-                        
+                    edge = makeNative(selectedEdge.edge)
                     try:
-                        if not dbUtils.isEdgeAssociatedWithFace(face, selectedEdge.edge):
+                        if not dbUtils.isEdgeAssociatedWithFace(face, edge):
                             continue  # skip if edge is not associated with the face currently being processed
                     except:
                         pass
                     
-                    startVertex = adsk.fusion.BRepVertex.cast(dbUtils.getVertexAtFace(face, selectedEdge.edge))
-                    extentToEntity = dbUtils.findExtent(face, selectedEdge.edge)
+                    startVertex = adsk.fusion.BRepVertex.cast(dbUtils.getVertexAtFace(face, edge))
+                    extentToEntity = dbUtils.findExtent(face, edge)
+
+                    extentToEntity = makeNative(extentToEntity)
                     self.logger.debug('extentToEntity - {}'.format(extentToEntity.isValid))
                     if not extentToEntity.isValid:
                         self.logger.debug('To face invalid')
 
                     try:
-                        (edge1, edge2) = dbUtils.getCornerEdgesAtFace(face, selectedEdge.edge)
+                        (edge1, edge2) = dbUtils.getCornerEdgesAtFace(face, edge)
                     except:
                         self.logger.exception('Failed at findAdjecentFaceEdges')
                         dbUtils.messageBox('Failed at findAdjecentFaceEdges:\n{}'.format(traceback.format_exc()))
                     
-                    if occ:
-                        centrePoint = startVertex.nativeObject.geometry.copy()
-                    else:
-                        centrePoint = startVertex.geometry.copy()
+                    centrePoint = makeNative(startVertex).geometry.copy()
                         
-                    selectedEdgeFaces = selectedEdge.edge.nativeObject.faces if occ else selectedEdge.edge.faces
+                    selectedEdgeFaces = makeNative(selectedEdge.edge).faces
                     
                     dirVect = adsk.core.Vector3D.cast(dbUtils.getFaceNormal(selectedEdgeFaces[0]).copy())
                     dirVect.add(dbUtils.getFaceNormal(selectedEdgeFaces[1]))
@@ -856,22 +859,16 @@ class DogboneCommand(object):
 
                     if self.fromTop:
                         centrePoint.translateBy(transformVector)
-                        self.logger.debug('centrePoint at topFace = ({},{},{})'.format(centrePoint.x, centrePoint.y, centrePoint.z))
-                        if occ:
-                            holePlane = topFace if self.fromTop else face.nativeObject
-                        else:
-                            holePlane = topFace if self.fromTop else face
+                        self.logger.debug('centrePoint at topFace = {}'.format(centrePoint.asArray()))
+                        holePlane = topFace if self.fromTop else face
                         if not holePlane.isValid:
-                            if occ:  #if the occ is Null then it's a rootComponent
-                                holePlane = comp.findBRepUsingPoint(topFaceRefPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0).createForAssemblyContext(occ)
-                            else:
-                                holePlane = comp.findBRepUsingPoint(topFaceRefPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
+                            holePlane = reValidateFace(comp, topFaceRefPoint)
                     else:
-                        holePlane = face
+                        holePlane = makeNative(face)
                         
-                    if occ:
-                        edge1 = edge1.nativeObject
-                        edge2 = edge2.nativeObject
+                    face = makeNative(face)
+                    edge1 = makeNative(edge1)
+                    edge2 = makeNative(edge2)
                       
                           
                     holes =  comp.features.holeFeatures
@@ -880,13 +877,13 @@ class DogboneCommand(object):
                     holeInput.isDefaultDirection = True
                     holeInput.tipAngle = adsk.core.ValueInput.createByString('180 deg')
 #                    holeInput.participantBodies = [face.nativeObject.body if occ else face.body]  #Restore this once AD fixes occurrence bugs
-                    holeInput.participantBodies = [face.nativeObject.body]  if occ else [face.body]
+                    holeInput.participantBodies = [makeNative(face.body)]
                     
                     self.logger.debug('extentToEntity before setPositionByPlaneAndOffsets - {}'.format(extentToEntity.isValid))
                     holeInput.setPositionByPlaneAndOffsets(holePlane, centrePoint, edge1, offsetByStr, edge2, offsetByStr)
                     self.logger.debug('extentToEntity after setPositionByPlaneAndOffsets - {}'.format(extentToEntity.isValid))
                     holeInput.setOneSideToExtent(extentToEntity, False)
-                    self.logger.info('hole added to list - ({},{},{})'.format(centrePoint.x, centrePoint.y, centrePoint.z))
+                    self.logger.info('hole added to list - {}'.format(centrePoint.asArray()))
  
                     holes.add(holeInput)
                     
@@ -910,7 +907,7 @@ class DogboneCommand(object):
         
         for occurrenceFace in self.selectedOccurrences.values():
             startTlMarker = self.design.timeline.markerPosition
-
+            
             if occurrenceFace[0].face.assemblyContext:
                 comp = occurrenceFace[0].face.assemblyContext.component
                 occ = occurrenceFace[0].face.assemblyContext
@@ -921,16 +918,16 @@ class DogboneCommand(object):
                comp = self.rootComp
                occ = None
                self.logger.info('processing Rootcomponent')
-
+               
             
             if self.fromTop:
-                (topFace, topFaceRefPoint) = dbUtils.getTopFace(occurrenceFace[0].face)
-                if occ:
-                    self.logger.info('Processing holes from top face - {}'.format(topFace.assemblyContext.name))
-                else:
-                    self.logger.info('Processing holes from top face - {}'.format(topFace.name))
+                (topFace, topFaceRefPoint) = dbUtils.getTopFace(makeNative(occurrenceFace[0].face))
+                self.logger.debug('topFace ref point: {}'.format(topFaceRefPoint.asArray()))
+                self.logger.info('Processing holes from top face - {}'.format(topFace.tempId))
+                self.debugFace(topFace)
+                
                     
-                sketch = adsk.fusion.Sketch.cast(comp.sketches.add(topFace, occ))  #used for fault finding
+                sketch = adsk.fusion.Sketch.cast(comp.sketches.add(topFace))  #used for fault finding
                 sketch.name = 'dogbone'
                 sketch.isComputeDeferred = True
                 self.logger.debug('Added topFace sketch - {}'.format(sketch.name))
@@ -939,29 +936,33 @@ class DogboneCommand(object):
                 if len(selectedFace.selectedEdges.values()) <1:
                     self.logger.debug('Face has no edges')
                     continue 
-                face = selectedFace.face
+                face = makeNative(selectedFace.face)
+
+                if not face.isValid:
+                    self.logger.debug('Revalidating face')
+                    face = reValidateFace(comp, selectedFace.refPoint)
+                    self.logger.info('Processing Face = {}'.format(face.tempId))
+                    self.debugFace(face)
+
+                self.logger.info('processing face - {}'.format(face.tempId))
+                self.debugFace(face)
                 holeList = []                
 
                 comp = adsk.fusion.Component.cast(comp)
                 
-                if not face.isValid:
-                    self.logger.debug('Revalidating face')
-                    if occ:  #if the occ is Null then it's a rootComponent
-                        face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0).createForAssemblyContext(occ)
-                    else:
-                        face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
-                self.logger.info('Processing Face = {}'.format(face.tempId))
 
                 if self.fromTop:
                     self.logger.debug('topFace type {}'.format(type(topFace)))
                     if not topFace.isValid:
                        self.logger.debug('revalidating topFace') 
-                       topFace = comp.findBRepUsingPoint(topFaceRefPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
+                       topFace = reValidateFace(comp, topFaceRefPoint)
+                       topFaceRefPoint = topFace.pointOnFace
+                       self.debugFace(topFace)
                     self.logger.debug('topFace isValid = {}'.format(topFace.isValid))
                     transformVector = dbUtils.getTranslateVectorBetweenFaces(face, topFace)
-                    self.logger.debug('creating transformVector to topFace = ({},{},{}) length = {}'.format(transformVector.x, transformVector.y, transformVector.z, transformVector.length))
+                    self.logger.debug('creating transformVector to topFace = {} length = {}'.format(transformVector.asArray(), transformVector.length))
                 else:    
-                    sketch = adsk.fusion.Sketch.cast(comp.sketches.add(face, occ))
+                    sketch = adsk.fusion.Sketch.cast(comp.sketches.add(face))
                     sketch.name = 'dogbone'
                     sketch.isComputeDeferred = True
                     self.logger.debug('creating face plane sketch - {}'.format(sketch.name))
@@ -972,31 +973,25 @@ class DogboneCommand(object):
 
                     if not face.isValid:
                         self.logger.debug('Revalidating face')
-                        if occ:  #if the occ is Null then it's a rootComponent
-                            face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0).createForAssemblyContext(occ)
-                        else:
-                            face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
+                        face = reValidateFace(comp, selectedFace.refPoint)
                         
                     if not selectedEdge.edge.isValid:
                         continue # edges that have been processed already will not be valid any more - at the moment this is easier than removing the 
     #                    affected edge from self.edges after having been processed
-                        
                     try:
-                        if not dbUtils.isEdgeAssociatedWithFace(face, selectedEdge.edge):
+                        if not dbUtils.isEdgeAssociatedWithFace(face, makeNative(selectedEdge.edge)):
                             continue  # skip if edge is not associated with the face currently being processed
                     except:
                         pass
-                    
-                    startVertex = adsk.fusion.BRepVertex.cast(dbUtils.getVertexAtFace(face, selectedEdge.edge))
-                    if occ:
-                        centrePoint = startVertex.nativeObject.geometry.copy()
-                    else:
-                        centrePoint = startVertex.geometry.copy()
+
+                    edge = makeNative(selectedEdge.edge)                    
+                    startVertex = adsk.fusion.BRepVertex.cast(dbUtils.getVertexAtFace(face, edge))
+                    centrePoint = startVertex.geometry.copy()
                         
-                    selectedEdgeFaces = selectedEdge.edge.nativeObject.faces if occ else selectedEdge.edge.faces
+                    selectedEdgeFaces = edge.faces
                     
-                    dirVect = adsk.core.Vector3D.cast(dbUtils.getFaceNormal(selectedEdgeFaces[0]).copy())
-                    dirVect.add(dbUtils.getFaceNormal(selectedEdgeFaces[1]))
+                    dirVect = adsk.core.Vector3D.cast(dbUtils.getFaceNormal(makeNative(selectedEdgeFaces[0])).copy())
+                    dirVect.add(dbUtils.getFaceNormal(makeNative(selectedEdgeFaces[1])))
                     dirVect.normalize()
                     dirVect.scaleBy(centreDistance)  #ideally radius should be linked to parameters, 
                                                               # but hole start point still is the right quadrant
@@ -1007,9 +1002,9 @@ class DogboneCommand(object):
                     centrePoint = sketch.modelToSketchSpace(centrePoint)
                     
                     sketchPoint = sketch.sketchPoints.add(centrePoint)  #as the centre is placed on midline endPoint, it automatically gets constrained
-                    length = (selectedEdge.edge.length + transformVector.length) if self.fromTop else selectedEdge.edge.length
+                    length = (selectedEdge.edge.length + transformVector.length) if self.fromTop else makeNative(selectedEdge.edge).length
                     holeList.append([length, sketchPoint])
-                    self.logger.info('hole added to list - length {}, ({},{},{})'.format(length, sketchPoint.geometry.x, sketchPoint.geometry.y, sketchPoint.geometry.z))
+                    self.logger.info('hole added to list - length {}, {}'.format(length, sketchPoint.geometry.asArray()))
                     
                 depthList = set(map(lambda x: x[0], holeList))  #create a unique set of depths - using this in the filter will automatically group depths
 
@@ -1023,16 +1018,13 @@ class DogboneCommand(object):
                     
                     if not face.isValid:
                         self.logger.debug('Revalidating face')
-                        if occ:  #if the occ is Null then it's a rootComponent
-                            face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType ).item(0).createForAssemblyContext(occ)
-                        else:
-                            face = comp.findBRepUsingPoint(selectedFace.refPoint, adsk.fusion.BRepEntityTypes.BRepFaceEntityType).item(0)
+                        face = reValidateFace(comp, selectedFace.refPoint)
 
                     holes =  comp.features.holeFeatures
                     holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByReal(self.circVal))
                     holeInput.isDefaultDirection = True
                     holeInput.tipAngle = adsk.core.ValueInput.createByString('180 deg')
-                    holeInput.participantBodies = [face.nativeObject.body if occ else face.body]
+                    holeInput.participantBodies = [face.body]
                     holeInput.setPositionBySketchPoints(pointCollection)
                     holeInput.setDistanceExtent(adsk.core.ValueInput.createByReal(depth))
 
@@ -1049,6 +1041,7 @@ class DogboneCommand(object):
             
         if self.errorCount >0:
             dbUtils.messageBox('Reported errors:{}\nYou may not need to do anything, \nbut check holes have been created'.format(self.errorCount))
+
 
 dog = DogboneCommand()
 #logger = logging.getLogger(__name__)
