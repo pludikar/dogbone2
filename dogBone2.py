@@ -43,8 +43,6 @@ reValidateFace = lambda comp, x: comp.findBRepUsingPoint(x, adsk.fusion.BRepEnti
 
 class SelectedEdge:
     def __init__(self, edge, edgeId, activeEdgeName, tempId, selectedFace):
-        self.logger = logging.getLogger(__name__)
-        self.logger.debug('SelectedEdit init')
         self.edge = edge
         self.edgeId = edgeId
         self.activeEdgeName = activeEdgeName
@@ -58,8 +56,6 @@ class SelectedEdge:
 
 class SelectedFace:
     def __init__(self, dog, face, faceId, tempId, occurrenceName, refPoint, commandInputsEdgeSelect):
-        self.logger = logging.getLogger(__name__)
-        self.logger.debug('SelectedFace init')
         self.dog = dog
         self.face = face # BrepFace
         self.faceId = faceId
@@ -135,7 +131,6 @@ class DogboneCommand(object):
 
 
     def __init__(self):
-#        self.logger = logging.getLogger(__name__)
         self.app = adsk.core.Application.get()
         self.ui = self.app.userInterface
 
@@ -282,11 +277,8 @@ class DogboneCommand(object):
         value: str(face tempId:occurrenceNumber)
             provides fast method of finding face that owns an edge
         """
-#        logging = logging.getLogger(__name__)
-#        self.logger.debug('app created')        
         inputs = adsk.core.CommandCreatedEventArgs.cast(args)
         self.faces = []
-#        self.faceAssociations = {}
         self.errorCount = 0
         self.faceSelections.clear()
         
@@ -300,27 +292,6 @@ class DogboneCommand(object):
 
         inputs = adsk.core.CommandInputs.cast(inputs.command.commandInputs)
         
-        modeRowInput = adsk.core.ButtonRowCommandInput.cast(inputs.addButtonRowCommandInput('modeRow', 'Mode', False))
-        modeRowInput.listItems.add('static', not self.parametric, 'resources/staticMode' )
-        modeRowInput.listItems.add('parametric', self.parametric, 'resources/parametricMode' )
-        modeRowInput.tooltipDescription = "Static dogbones do not move with the underlying component geometry. \n" \
-                                "Parametric dogbones will automatically adjust position with parametric changes to underlying geometry.\n"\
-                                "Geometry changes must be made via the parametric dialog"
-        
-        minimumRowInput = adsk.core.ButtonRowCommandInput.cast(inputs.addButtonRowCommandInput('dogboneType', 'Type', False))
-        minimumRowInput.listItems.add('minimal dogBone', self.minimal, 'resources/minimal' )
-        minimumRowInput.listItems.add('normal dogBone', not self.minimal, 'resources/normal' )
-
-        minPercentInp = inputs.addValueInput(
-            'minimalPercent', 'Percentage reduction', '',
-            adsk.core.ValueInput.createByReal(self.minimalPercent))
-        minPercentInp.tooltip = "Percentage of tool radius added to dogBone offset."
-        minPercentInp.isVisible = self.minimal
-
-        depthRowInput = adsk.core.ButtonRowCommandInput.cast(inputs.addButtonRowCommandInput('depthExtent', 'Depth extent', False))
-        depthRowInput.listItems.add('from Selected Face', not self.fromTop, 'resources/fromFace' )
-        depthRowInput.listItems.add('from Top Face', self.fromTop, 'resources/fromTop' )
- 
         selInput0 = inputs.addSelectionInput(
             'select', 'Face',
             'Select a face to apply dogbones to all internal corner edges')
@@ -337,42 +308,55 @@ class DogboneCommand(object):
         selInput1.isVisible = False
                 
         inp = inputs.addValueInput(
-            'circDiameter', 'Tool Diameter', self.design.unitsManager.defaultLengthUnits,
+            'circDiameter', 'Tool Diameter               ', self.design.unitsManager.defaultLengthUnits,
             adsk.core.ValueInput.createByString(self.circStr))
         inp.tooltip = "Size of the tool with which you'll cut the dogbone."
-
-        inp = inputs.addValueInput(
-            'offset', 'Additional Offset', self.design.unitsManager.defaultLengthUnits,
-            adsk.core.ValueInput.createByString(self.offStr))
-        inp.tooltip = "Additional increase to the radius of the dogbone. (Probably don't want to do this with minimal dogbones)"
-
-#        typelist = inputs.addDropDownCommandInput('typeList', ' Select Dogbone Style', adsk.core.DropDownStyles.LabeledIconDropDownStyle)
-#        typelist.listItems.add('From Top', self.boneDirection == 'top', '')
-#        typelist.listItems.add('From Selected', self.boneDirection == 'selected', '')
-#        typelist.listItems.add('Along Shortest', self.boneDirection == 'shortest', '')
-#        inp = inputs.addBoolValueInput("minimal", "Create Minimal Dogbones", True, "", self.minimal)
-#        inp.tooltip = "Offsets the dogbone circle inwards by (default) 10% to get a minimal dogbone. " \
-#                      "Workpieces will probably need to be hammered together.\n" \
-#                      "Only works with \"Along Both Sides\"."
-#        inp.isVisible = (self.boneDirection == 'top')
-
-#        inp = inputs.addBoolValueInput("fromTop", "Cut dogbones from Top", True, "", self.fromTop)
-#        inp.tooltip = "Dogbones are cut from all the way from the top face to the bottom of the selected edge. \n" \
-#                     "if not selected, dogbones will be cut from selected face to bottom of selected edge" 
-#
-#        inp.isVisible = True
-
-        inputs.addBoolValueInput("benchmark", "Benchmark running time", True, "", self.benchmark)
         
-        logDropDownInp = adsk.core.DropDownCommandInput.cast(inputs.addDropDownCommandInput("logging", "logging level", adsk.core.DropDownStyles.TextListDropDownStyle))
+        modeGroup = adsk.core.GroupCommandInput.cast(inputs.addGroupCommandInput('modeGroup', 'Mode'))
+        modeGroup.isExpanded = False
+        modeGroupChildInputs = modeGroup.children
+        
+        modeRowInput = adsk.core.ButtonRowCommandInput.cast(modeGroupChildInputs.addButtonRowCommandInput('modeRow', 'Mode', False))
+        modeRowInput.listItems.add('static', not self.parametric, 'resources/staticMode' )
+        modeRowInput.listItems.add('parametric', self.parametric, 'resources/parametricMode' )
+        modeRowInput.tooltipDescription = "Static dogbones do not move with the underlying component geometry. \n" \
+                                "Parametric dogbones will automatically adjust position with parametric changes to underlying geometry.\n"\
+                                "Geometry changes must be made via the parametric dialog"
+        
+        minimumRowInput = adsk.core.ButtonRowCommandInput.cast(modeGroupChildInputs.addButtonRowCommandInput('dogboneType', 'Type', False))
+        minimumRowInput.listItems.add('normal dogBone', not self.minimal, 'resources/normal' )
+        minimumRowInput.listItems.add('minimal dogBone', self.minimal, 'resources/minimal' )
+        minimumRowInput.tooltipDescription = "Minimum dogbones creates visually less prominent dogbones, but results in an interference fit\n" \
+                                            "that, for example, will require a larger force to insert a tenon into a mortice"
+        
+        minPercentInp = modeGroupChildInputs.addValueInput(
+            'minimalPercent', 'Percentage reduction', '',
+            adsk.core.ValueInput.createByReal(self.minimalPercent))
+        minPercentInp.tooltip = "Percentage of tool radius added to dogBone offset."
+        minPercentInp.tooltipDescription = "This should typically be left at 10%, but if the fit is too tight, it should be reduced"
+        minPercentInp.isVisible = self.minimal
+
+        depthRowInput = adsk.core.ButtonRowCommandInput.cast(modeGroupChildInputs.addButtonRowCommandInput('depthExtent', 'Depth extent', False))
+        depthRowInput.listItems.add('from Selected Face', not self.fromTop, 'resources/fromFace' )
+        depthRowInput.listItems.add('from Top Face', self.fromTop, 'resources/fromTop' )
+        depthRowInput.tooltipDescription = "When cut from Top is selected, all dogbones will be extended to the top most face\n"\
+                                            "This is typically chosen when you don't want to/or can't do double sided machining"
+ 
+        settingGroup = adsk.core.GroupCommandInput.cast(inputs.addGroupCommandInput('settingsGroup', 'Settings'))
+        settingGroup.isExpanded = False
+        settingGroupChildInputs = settingGroup.children
+
+        benchMark = settingGroupChildInputs.addBoolValueInput("benchmark", "Benchmark time", True, "", self.benchmark)
+        benchMark.tooltip = "Enables benchmark"
+        benchMark.tooltipDescription = "When enabled, shows overall time taken to process all selected dogbones"
+
+        logDropDownInp = adsk.core.DropDownCommandInput.cast(settingGroupChildInputs.addDropDownCommandInput("logging", "Logging level", adsk.core.DropDownStyles.TextListDropDownStyle))
         logDropDownInp.tooltipDescription = "creates a dogbone.log file. \n" \
-                     "location: " +  os.path.join(self.appPath, 'dogBone.txt')
+                     "location: " +  os.path.join(self.appPath, 'dogBone.log')
 
         logDropDownInp.listItems.add('Notset', self.logging == 0)
         logDropDownInp.listItems.add('Debug', self.logging == 10)
         logDropDownInp.listItems.add('Info', self.logging == 20)
-#        logDropDownInp.listItems.add('Warning', self.logging == 30)
-#        logDropDownInp.listItems.add('Errors', self.logging == 40)
 
         cmd = adsk.core.Command.cast(args.command)
         # Add handlers to this command.
@@ -865,11 +849,13 @@ class DogboneCommand(object):
                             holePlane = reValidateFace(comp, topFaceRefPoint)
                     else:
                         holePlane = makeNative(face)
-                        
-                    face = makeNative(face)
-                    edge1 = makeNative(edge1)
-                    edge2 = makeNative(edge2)
-                      
+#==============================================================================
+#                         
+#                     face = makeNative(face)
+#                     edge1 = makeNative(edge1)
+#                     edge2 = makeNative(edge2)
+#                       
+#==============================================================================
                           
                     holes =  comp.features.holeFeatures
                     holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByString('dbToolDia'))
@@ -1044,18 +1030,9 @@ class DogboneCommand(object):
 
 
 dog = DogboneCommand()
-#logger = logging.getLogger(__name__)
-#formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-#logHandler = logging.FileHandler(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dogBone.log'), 'w')
-#logHandler.setLevel(logging.DEBUG)
-#loHandler.setFormatter(formatter)
 
 
 def run(context):
-#    logging.basicConfig( level=logging.DEBUG)
-
-#    logger.info('dogbone running')
-
     try:
         dog.addButton()
     except:
