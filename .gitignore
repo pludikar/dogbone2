@@ -1,3 +1,5 @@
 .spyderworkspace
 .git
+dogbone.log
+default.dat
 __pycache__
