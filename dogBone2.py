@@ -162,8 +162,8 @@ class DogboneCommand(object):
     def writeDefaults(self):
         self.logger.info('config file write')
 
-#        self.defaultData['offStr'] = self.offStr
-#        self.defaultData['offVal'] = self.offVal
+        self.defaultData['offStr'] = self.offStr
+        self.defaultData['offVal'] = self.offVal
         self.defaultData['circStr'] = self.circStr
         self.defaultData['circVal'] = self.circVal
             #self.defaultData['!outputUnconstrainedGeometry:' = str(self.outputUnconstrainedGeometry))
@@ -198,8 +198,8 @@ class DogboneCommand(object):
 
         json_file.close()
         try:
-#            self.offStr = self.defaultData['offStr']
-#            self.offVal = self.defaultData['offVal']
+            self.offStr = self.defaultData['offStr']
+            self.offVal = self.defaultData['offVal']
             self.circStr = self.defaultData['circStr']
             self.circVal = self.defaultData['circVal']
                 #elif var == 'outputUnconstrainedGeometry': self.outputUnconstrainedGeometry = val == 'True'
@@ -311,6 +311,15 @@ class DogboneCommand(object):
             'circDiameter', 'Tool Diameter               ', self.design.unitsManager.defaultLengthUnits,
             adsk.core.ValueInput.createByString(self.circStr))
         inp.tooltip = "Size of the tool with which you'll cut the dogbone."
+        
+        offsetInp = inputs.addValueInput(
+            'offset', 'Tool diameter offset', self.design.unitsManager.defaultLengthUnits,
+            adsk.core.ValueInput.createByString(self.offStr))
+        offsetInp.tooltip = "Increases the tool diameter"
+        offsetInp.tooltipDescription = "Use this to create an oversized dogbone.\n"\
+                                        "Normally set to 0.  \n"\
+                                        "A value of .010 would increase the dogbone diameter by .010 \n"\
+                                        "Used when you want to keep the tool diameter and oversize value separate"
         
         modeGroup = adsk.core.GroupCommandInput.cast(inputs.addGroupCommandInput('modeGroup', 'Mode'))
         modeGroup.isExpanded = False
@@ -494,8 +503,8 @@ class DogboneCommand(object):
 
         self.circStr = inputs['circDiameter'].expression
         self.circVal = inputs['circDiameter'].value
-#        self.offStr = inputs['offset'].expression
-#        self.offVal = inputs['offset'].value
+        self.offStr = inputs['offset'].expression
+        self.offVal = inputs['offset'].value
         self.benchmark = inputs['benchmark'].value
         self.minimal = inputs['dogboneType'].selectedItem.name == 'minimal dogBone'
         self.minimalPercent = inputs['minimalPercent'].value
@@ -570,11 +579,11 @@ class DogboneCommand(object):
             uParam.comment = 'Do NOT change formula'
 
         if not userParams.itemByName('dbRadius'):
-            rValIn = adsk.core.ValueInput.createByString('dbToolDia/2 + dbOffset')
+            rValIn = adsk.core.ValueInput.createByString('(dbToolDia + dbOffset)/2')
             rParameter = userParams.add('dbRadius',rValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
         else:
             uParam = userParams.itemByName('dbRadius')
-            uParam.expression = 'dbToolDia/2 + dbOffset'
+            uParam.expression = '(dbToolDia + dbOffset)/2'
             uParam.comment = 'Do NOT change formula'
 
         if not userParams.itemByName('dbMinPercent'):
@@ -858,7 +867,7 @@ class DogboneCommand(object):
 #==============================================================================
                           
                     holes =  comp.features.holeFeatures
-                    holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByString('dbToolDia'))
+                    holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByString('dbRadius*2'))
 #                    holeInput.creationOccurrence = occ #This needs to be uncommented once AD fixes component copy issue!!
                     holeInput.isDefaultDirection = True
                     holeInput.tipAngle = adsk.core.ValueInput.createByString('180 deg')
@@ -1007,7 +1016,7 @@ class DogboneCommand(object):
                         face = reValidateFace(comp, selectedFace.refPoint)
 
                     holes =  comp.features.holeFeatures
-                    holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByReal(self.circVal))
+                    holeInput = holes.createSimpleInput(adsk.core.ValueInput.createByReal(self.radius*2))
                     holeInput.isDefaultDirection = True
                     holeInput.tipAngle = adsk.core.ValueInput.createByString('180 deg')
                     holeInput.participantBodies = [face.body]
