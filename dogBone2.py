@@ -162,8 +162,8 @@ class DogboneCommand(object):
     def writeDefaults(self):
         self.logger.info('config file write')
 
-        self.defaultData['offStr'] = self.offStr
-        self.defaultData['offVal'] = self.offVal
+#        self.defaultData['offStr'] = self.offStr
+#        self.defaultData['offVal'] = self.offVal
         self.defaultData['circStr'] = self.circStr
         self.defaultData['circVal'] = self.circVal
             #self.defaultData['!outputUnconstrainedGeometry:' = str(self.outputUnconstrainedGeometry))
@@ -198,8 +198,8 @@ class DogboneCommand(object):
 
         json_file.close()
         try:
-            self.offStr = self.defaultData['offStr']
-            self.offVal = self.defaultData['offVal']
+#            self.offStr = self.defaultData['offStr']
+#            self.offVal = self.defaultData['offVal']
             self.circStr = self.defaultData['circStr']
             self.circVal = self.defaultData['circVal']
                 #elif var == 'outputUnconstrainedGeometry': self.outputUnconstrainedGeometry = val == 'True'
@@ -494,8 +494,8 @@ class DogboneCommand(object):
 
         self.circStr = inputs['circDiameter'].expression
         self.circVal = inputs['circDiameter'].value
-        self.offStr = inputs['offset'].expression
-        self.offVal = inputs['offset'].value
+#        self.offStr = inputs['offset'].expression
+#        self.offVal = inputs['offset'].value
         self.benchmark = inputs['benchmark'].value
         self.minimal = inputs['dogboneType'].selectedItem.name == 'minimal dogBone'
         self.minimalPercent = inputs['minimalPercent'].value
