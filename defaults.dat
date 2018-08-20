@@ -1,1 +1,1 @@
-{"minimalPercent": 10.0, "offVal": 0.254, "parametric": true, "circVal": 0.635, "fromTop": false, "circStr": "0.25 in", "logging": 0, "benchmark": false, "offStr": "0.1 in", "minimal": false}
+{"minimalPercent": 10.0, "minimal": false, "offStr": "0 in", "benchmark": false, "dbType": "mortise dogBone", "offVal": 0.0, "circStr": "0.25 in", "logging": 0, "parametric": true, "circVal": 0.635, "fromTop": false, "mortiseType": true}
