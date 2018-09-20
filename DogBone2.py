@@ -208,11 +208,12 @@ class DogboneCommand(object):
             self.benchmark = self.defaultData['benchmark']
 #            self.boneDirection = self.defaultData['boneDirection']
             self.dbType = self.defaultData['dbType']
-            self.minimalPercent = self.defaultData['MinimalPercent']
+            self.minimalPercent = self.defaultData['minimalPercent']
             self.fromTop = self.defaultData['FromTop']
             self.parametric = self.defaultData['Parametric']
             self.logging = self.defaultData['Logging']
-            self.longside = self.defaultData['MortiseType']
+            self.longside = self.defaultData['mortiseType']
+
         except KeyError: 
         
 #            self.logger.error('Key error on read config file')
@@ -298,7 +299,7 @@ class DogboneCommand(object):
         selInput0 = inputs.addSelectionInput(
             'select', 'Face',
             'Select a face to apply dogbones to all internal corner edges')
-        selInput0.tooltip ='Select a face to apply dogbones to all internal corner edges\n*** Select faces with clicking. DO NOT DRAG SELECT! ***' 
+        selInput0.tooltip ='Select a face to apply dogbones to all internal corner edges\n*** Select faces by clicking on them. DO NOT DRAG SELECT! ***' 
 #        selInput0.addSelectionFilter('LinearEdges')
         selInput0.addSelectionFilter('PlanarFaces')
         selInput0.setSelectionLimits(1,0)
@@ -334,34 +335,36 @@ class DogboneCommand(object):
         modeRowInput.listItems.add('Static', not self.parametric, 'resources/staticMode' )
         modeRowInput.listItems.add('Parametric', self.parametric, 'resources/parametricMode' )
         modeRowInput.tooltipDescription = "Static dogbones do not move with the underlying component geometry. \n" \
-                                "Parametric dogbones will automatically adjust position with parametric changes to underlying geometry.\n"\
-                                "Geometry changes must be made via the parametric dialog"
+                                "\nParametric dogbones will automatically adjust position with parametric changes to underlying geometry.\n" \
+                                "\nGeometry changes must be made via the parametric dialog\nFusion has more issues/bugs with these!"
         
         typeRowInput = adsk.core.ButtonRowCommandInput.cast(modeGroupChildInputs.addButtonRowCommandInput('dogboneType', 'Type', False))
         typeRowInput.listItems.add('Normal Dogbone', self.dbType == 'Normal Dogbone', 'resources/normal' )
-        typeRowInput.listItems.add('Minimal dogbone', self.dbType == 'Minimal Dogbone', 'resources/minimal' )
+        typeRowInput.listItems.add('Minimal Dogbone', self.dbType == 'Minimal Dogbone', 'resources/minimal' )
         typeRowInput.listItems.add('Mortise Dogbone', self.dbType == 'Mortise Dogbone', 'resources/hidden' )
-        typeRowInput.tooltipDescription = "Minimum dogbones creates visually less prominent dogbones, but results in an interference fit\n" \
-                                            "that, for example, will require a larger force to insert a tenon into a mortise"
+        typeRowInput.tooltipDescription = "Minimal dogbones creates visually less prominent dogbones, but results in an interference fit " \
+                                            "that, for example, will require a larger force to insert a tenon into a mortise.\n" \
+                                            "\nMortise dogbones create dogbones on the shortest sides, or the longest sides.\n" \
+                                            "A piece with a tenon can be used to hide them if they're not cut all the way through."
         
-        mortiseRowInput = adsk.core.ButtonRowCommandInput.cast(modeGroupChildInputs.addButtonRowCommandInput('mortiseType', 'mortiseType', False))
-        mortiseRowInput.listItems.add('LongSide', self.longside, 'resources/hidden/longside' )
-        mortiseRowInput.listItems.add('ShortSide', not self.longside, 'resources/hidden/shortside' )
-        mortiseRowInput.tooltipDescription = "Minimum dogbones creates visually less prominent dogbones, but results in an interference fit\n" \
-                                            "that, for example, will require a larger force to insert a tenon into a mortise"
+        mortiseRowInput = adsk.core.ButtonRowCommandInput.cast(modeGroupChildInputs.addButtonRowCommandInput('mortiseType', 'Mortise Type', False))
+        mortiseRowInput.listItems.add('On Long Side', self.longside, 'resources/hidden/longside' )
+        mortiseRowInput.listItems.add('On Short Side', not self.longside, 'resources/hidden/shortside' )
+        mortiseRowInput.tooltipDescription = "On Long Side will have the dogbones cut into the longer sides.\n" \
+                                             "\nOn Short Side will have the dogbones cut into the shorter sides."
         mortiseRowInput.isVisible = self.dbType == 'Mortise Dogbone'
 
         minPercentInp = modeGroupChildInputs.addValueInput(
-            'minimalPercent', 'Percentage reduction', '',
+            'minimalPercent', 'Percentage Reduction', '',
             adsk.core.ValueInput.createByReal(self.minimalPercent))
         minPercentInp.tooltip = "Percentage of tool radius added to dogBone offset."
         minPercentInp.tooltipDescription = "This should typically be left at 10%, but if the fit is too tight, it should be reduced"
         minPercentInp.isVisible = self.dbType == 'Minimal Dogbone'
 
-        depthRowInput = adsk.core.ButtonRowCommandInput.cast(modeGroupChildInputs.addButtonRowCommandInput('depthExtent', 'Depth extent', False))
+        depthRowInput = adsk.core.ButtonRowCommandInput.cast(modeGroupChildInputs.addButtonRowCommandInput('depthExtent', 'Depth Extent', False))
         depthRowInput.listItems.add('From Selected Face', not self.fromTop, 'resources/fromFace' )
         depthRowInput.listItems.add('From Top Face', self.fromTop, 'resources/fromTop' )
-        depthRowInput.tooltipDescription = "When cut from Top is selected, all dogbones will be extended to the top most face\n"\
+        depthRowInput.tooltipDescription = "When \"From Top Face\" is selected, all dogbones will be extended to the top most face\n"\
                                             "This is typically chosen when you don't want to/or can't do double sided machining"
  
         settingGroup = adsk.core.GroupCommandInput.cast(inputs.addGroupCommandInput('settingsGroup', 'Settings'))
@@ -400,8 +403,8 @@ class DogboneCommand(object):
 #        self.logger.debug('input changed- {}'.format(changedInput.id))
 
         if changedInput.id == 'dogboneType':
-            changedInput.commandInputs.itemById('minimalPercent').isVisible = (changedInput.commandInputs.itemById('dogboneType').selectedItem.name == 'minimal dogBone')
-            changedInput.commandInputs.itemById('mortiseType').isVisible = (changedInput.commandInputs.itemById('dogboneType').selectedItem.name == 'mortise dogBone')
+            changedInput.commandInputs.itemById('minimalPercent').isVisible = (changedInput.commandInputs.itemById('dogboneType').selectedItem.name == 'Minimal Dogbone')
+            changedInput.commandInputs.itemById('mortiseType').isVisible = (changedInput.commandInputs.itemById('dogboneType').selectedItem.name == 'Mortise Dogbone')
        
 
         if changedInput.id != 'select' and changedInput.id != 'edgeSelect':
@@ -523,9 +526,9 @@ class DogboneCommand(object):
         self.benchmark = inputs['benchmark'].value
         self.dbType = inputs['dogboneType'].selectedItem.name
         self.minimalPercent = inputs['minimalPercent'].value
-        self.fromTop = inputs['depthExtent'].selectedItem.name == 'from Top Face'
-        self.parametric = inputs['modeRow'].selectedItem.name == 'parametric'
-        self.longside = inputs['mortiseType'].selectedItem.name == 'longSide'
+        self.fromTop = (inputs['depthExtent'].selectedItem.name == 'From Top Face')
+        self.parametric = (inputs['modeRow'].selectedItem.name == 'Parametric')
+        self.longside = (inputs['mortiseType'].selectedItem.name == 'On Long Side')
 
         self.logger.debug('self.fromTop = {}'.format(self.fromTop))
         self.logger.debug('self.dbType = {}'.format(self.dbType))
@@ -772,6 +775,7 @@ class DogboneCommand(object):
 
     # The main algorithm for parametric dogbones
     def createParametricDogbones(self):
+        dbUtils.messageBox("parametric!")
         self.logger.info('Creating parametric dogbones')
         self.errorCount = 0
         if not self.design:
