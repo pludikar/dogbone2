@@ -21,13 +21,10 @@ This version: 0.3  Generally works, but there may be a few lingering bugs - Need
 
 ---
 
-I've completely revamped the dogbone add-in by Casey Rogers, Patrick Rainsberry and David Liu
-some of the original utilities have remained, but mostly everything else has changed.  There's probably <5% of the original remaining
+Dogbones hase been completed revamped some of the original utilities have remained, but mostly everything else has changed.
 
 The original add-in was based on creating sketches and extruding - I found using this approach to be very heavy 
-on processing resources, so this version has been designed to create dogbones directly by using a hole tool. The original add-in was also breaking frequently - it didn't like joints, among other things.  So far the
-the performance of this approach is day and night compared to the original version (although time will tell if this claim is true). 
-
+on processing resources, so this version has been designed to create dogbones directly by using a hole tool. The original add-in was also breaking frequently - it didn't like joints, among other things.
 ## Installation
 
 Once this add-in is mature enough I'll add instructions.  Until then, if you don't know how to install an add-in into Fusion 360, it's too early in the development cycle for you to use this.  Anyone else - please send comments and/or error messages, along with the use case, so I can figure out how to improve the design.
@@ -53,6 +50,6 @@ The add-in will then create a dogbone with diameter equal to the tool diameter p
 
 Samples are licensed under the terms of the [MIT License](http://opensource.org/licenses/MIT). Please see the [LICENSE](LICENSE) file for full details.
 
-## Author
+## Authors
 
-Peter Ludikar
+Peter Ludikar, Gary Singer

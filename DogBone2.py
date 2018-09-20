@@ -142,7 +142,7 @@ class DogboneCommand(object):
         self.benchmark = False
         self.errorCount = 0
 #        self.boneDirection = "top"
-        self.dbType = 'normal dogBone'
+        self.dbType = 'Normal Dogbone'
         self.longside = True
         self.minimalPercent = 10.0
         self.faceSelections = adsk.core.ObjectCollection.create()
@@ -208,11 +208,11 @@ class DogboneCommand(object):
             self.benchmark = self.defaultData['benchmark']
 #            self.boneDirection = self.defaultData['boneDirection']
             self.dbType = self.defaultData['dbType']
-            self.minimalPercent = self.defaultData['minimalPercent']
-            self.fromTop = self.defaultData['fromTop']
-            self.parametric = self.defaultData['parametric']
-            self.logging = self.defaultData['logging']
-            self.longside = self.defaultData['mortiseType']
+            self.minimalPercent = self.defaultData['MinimalPercent']
+            self.fromTop = self.defaultData['FromTop']
+            self.parametric = self.defaultData['Parametric']
+            self.logging = self.defaultData['Logging']
+            self.longside = self.defaultData['MortiseType']
         except KeyError: 
         
 #            self.logger.error('Key error on read config file')
@@ -298,14 +298,16 @@ class DogboneCommand(object):
         selInput0 = inputs.addSelectionInput(
             'select', 'Face',
             'Select a face to apply dogbones to all internal corner edges')
+        selInput0.tooltip ='Select a face to apply dogbones to all internal corner edges\n*** Select faces with clicking. DO NOT DRAG SELECT! ***' 
 #        selInput0.addSelectionFilter('LinearEdges')
         selInput0.addSelectionFilter('PlanarFaces')
         selInput0.setSelectionLimits(1,0)
         
         selInput1 = inputs.addSelectionInput(
             'edgeSelect', 'DogBone Edges',
-            'Select a face to apply dogbones to all internal corner edges')
+            'Select or de-select any internal edges dropping down from a selected face (to apply dogbones to')
 #        selInput0.addSelectionFilter('LinearEdges')
+        selInput1.tooltip ='Select or de-select any internal edges dropping down from a selected face (to apply dogbones to)' 
         selInput1.addSelectionFilter('LinearEdges')
         selInput1.setSelectionLimits(1,0)
         selInput1.isVisible = False
@@ -329,36 +331,36 @@ class DogboneCommand(object):
         modeGroupChildInputs = modeGroup.children
         
         modeRowInput = adsk.core.ButtonRowCommandInput.cast(modeGroupChildInputs.addButtonRowCommandInput('modeRow', 'Mode', False))
-        modeRowInput.listItems.add('static', not self.parametric, 'resources/staticMode' )
-        modeRowInput.listItems.add('parametric', self.parametric, 'resources/parametricMode' )
+        modeRowInput.listItems.add('Static', not self.parametric, 'resources/staticMode' )
+        modeRowInput.listItems.add('Parametric', self.parametric, 'resources/parametricMode' )
         modeRowInput.tooltipDescription = "Static dogbones do not move with the underlying component geometry. \n" \
                                 "Parametric dogbones will automatically adjust position with parametric changes to underlying geometry.\n"\
                                 "Geometry changes must be made via the parametric dialog"
         
         typeRowInput = adsk.core.ButtonRowCommandInput.cast(modeGroupChildInputs.addButtonRowCommandInput('dogboneType', 'Type', False))
-        typeRowInput.listItems.add('normal dogBone', self.dbType == 'normal dogBone', 'resources/normal' )
-        typeRowInput.listItems.add('minimal dogBone', self.dbType == 'minimal dogBone', 'resources/minimal' )
-        typeRowInput.listItems.add('mortise dogBone', self.dbType == 'mortise dogBone', 'resources/hidden' )
+        typeRowInput.listItems.add('Normal Dogbone', self.dbType == 'Normal Dogbone', 'resources/normal' )
+        typeRowInput.listItems.add('Minimal dogbone', self.dbType == 'Minimal Dogbone', 'resources/minimal' )
+        typeRowInput.listItems.add('Mortise Dogbone', self.dbType == 'Mortise Dogbone', 'resources/hidden' )
         typeRowInput.tooltipDescription = "Minimum dogbones creates visually less prominent dogbones, but results in an interference fit\n" \
-                                            "that, for example, will require a larger force to insert a tenon into a mortice"
+                                            "that, for example, will require a larger force to insert a tenon into a mortise"
         
         mortiseRowInput = adsk.core.ButtonRowCommandInput.cast(modeGroupChildInputs.addButtonRowCommandInput('mortiseType', 'mortiseType', False))
-        mortiseRowInput.listItems.add('longSide', self.longside, 'resources/hidden/longside' )
-        mortiseRowInput.listItems.add('shortSide', not self.longside, 'resources/hidden/shortside' )
+        mortiseRowInput.listItems.add('LongSide', self.longside, 'resources/hidden/longside' )
+        mortiseRowInput.listItems.add('ShortSide', not self.longside, 'resources/hidden/shortside' )
         mortiseRowInput.tooltipDescription = "Minimum dogbones creates visually less prominent dogbones, but results in an interference fit\n" \
-                                            "that, for example, will require a larger force to insert a tenon into a mortice"
-        mortiseRowInput.isVisible = self.dbType == 'mortise dogBone'
+                                            "that, for example, will require a larger force to insert a tenon into a mortise"
+        mortiseRowInput.isVisible = self.dbType == 'Mortise Dogbone'
 
         minPercentInp = modeGroupChildInputs.addValueInput(
             'minimalPercent', 'Percentage reduction', '',
             adsk.core.ValueInput.createByReal(self.minimalPercent))
         minPercentInp.tooltip = "Percentage of tool radius added to dogBone offset."
         minPercentInp.tooltipDescription = "This should typically be left at 10%, but if the fit is too tight, it should be reduced"
-        minPercentInp.isVisible = self.dbType == 'minimal dogBone'
+        minPercentInp.isVisible = self.dbType == 'Minimal Dogbone'
 
         depthRowInput = adsk.core.ButtonRowCommandInput.cast(modeGroupChildInputs.addButtonRowCommandInput('depthExtent', 'Depth extent', False))
-        depthRowInput.listItems.add('from Selected Face', not self.fromTop, 'resources/fromFace' )
-        depthRowInput.listItems.add('from Top Face', self.fromTop, 'resources/fromTop' )
+        depthRowInput.listItems.add('From Selected Face', not self.fromTop, 'resources/fromFace' )
+        depthRowInput.listItems.add('From Top Face', self.fromTop, 'resources/fromTop' )
         depthRowInput.tooltipDescription = "When cut from Top is selected, all dogbones will be extended to the top most face\n"\
                                             "This is typically chosen when you don't want to/or can't do double sided machining"
  
@@ -414,15 +416,15 @@ class DogboneCommand(object):
             numSelectedFaces = sum(1 for face in self.selectedFaces.values() if face.selected) 
             if numSelectedFaces > changedInput.selectionCount:               
                 # a face has been removed
-
+                
                 # If all faces are removed, just iterate through all
-                if numSelectedFaces == 0:                
+                if changedInput.selectionCount == 0:                
                     for face in self.selectedFaces.values():
                         if face.selected:
                             face.selectAll(False)
                     changedInput.commandInputs.itemById('edgeSelect').clearSelection()
-                    changedInput.commandInputs.itemById('edgeSelect').isVisible = False   
                     changedInput.commandInputs.itemById('select').hasFocus = True                    
+                    changedInput.commandInputs.itemById('edgeSelect').isVisible = False   
                     return
                 
                 # Else find the missing face in selection
@@ -612,11 +614,11 @@ class DogboneCommand(object):
             uParam.isFavorite = True
 
         if not userParams.itemByName('dbHoleOffset'):
-            oValIn = adsk.core.ValueInput.createByString('dbRadius / sqrt(2)' + (' * (1 + dbMinPercent/100)') if self.dbType == 'minimal dogBone' else 'dbRadius' if self.dbType == 'mortise dogBone' else 'dbRadius / sqrt(2)')
+            oValIn = adsk.core.ValueInput.createByString('dbRadius / sqrt(2)' + (' * (1 + dbMinPercent/100)') if self.dbType == 'Minimal Dogbone' else 'dbRadius' if self.dbType == 'Mortise Dogbone' else 'dbRadius / sqrt(2)')
             oParameter = userParams.add('dbHoleOffset', oValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
         else:
             uParam = userParams.itemByName('dbHoleOffset')
-            uParam.expression = 'dbRadius / sqrt(2)' + (' * (1 + dbMinPercent/100)') if self.dbType == 'minimal dogBone' else 'dbRadius' if self.dbType == 'mortise dogBone' else 'dbRadius / sqrt(2)'
+            uParam.expression = 'dbRadius / sqrt(2)' + (' * (1 + dbMinPercent/100)') if self.dbType == 'Minimal Dogbone' else 'dbRadius' if self.dbType == 'Mortise Dogbone' else 'dbRadius / sqrt(2)'
             uParam.comment = 'Do NOT change formula'
 
         self.radius = userParams.itemByName('dbRadius').value
@@ -776,7 +778,7 @@ class DogboneCommand(object):
             raise RuntimeError('No active Fusion design')
         holeInput = adsk.fusion.HoleFeatureInput.cast(None)
         offsetByStr = adsk.core.ValueInput.createByString('dbHoleOffset')
-        centreDistance = self.radius*(1+self.minimalPercent/100 if self.dbType=='minimal dogBone' else  1)
+        centreDistance = self.radius*(1+self.minimalPercent/100 if self.dbType=='Minimal Dogbone' else  1)
         
         for occurrenceFace in self.selectedOccurrences.values():
             startTlMarker = self.design.timeline.markerPosition
@@ -862,7 +864,7 @@ class DogboneCommand(object):
                     dirVect.normalize()
                     dirVect.scaleBy(centreDistance)  #ideally radius should be linked to parameters, 
  
-                    if self.dbType == 'mortise dogBone':
+                    if self.dbType == 'Mortise Dogbone':
                         direction0 = dbUtils.correctedEdgeVector(edge1,startVertex) 
                         direction1 = dbUtils.correctedEdgeVector(edge2,startVertex)
                         
@@ -934,7 +936,7 @@ class DogboneCommand(object):
         if not self.design:
             raise RuntimeError('No active Fusion design')
         holeInput = adsk.fusion.HoleFeatureInput.cast(None)
-        centreDistance = self.radius*(1+self.minimalPercent/100 if self.dbType == 'minimal dogBone' else  1)
+        centreDistance = self.radius*(1+self.minimalPercent/100 if self.dbType == 'Minimal Dogbone' else  1)
         
         for occurrenceFace in self.selectedOccurrences.values():
             startTlMarker = self.design.timeline.markerPosition
@@ -1021,7 +1023,7 @@ class DogboneCommand(object):
                         
                     selectedEdgeFaces = edge.faces
                     
-                    if self.dbType == 'mortise dogBone':
+                    if self.dbType == 'Mortise Dogbone':
                         (edge0, edge1) = dbUtils.getCornerEdgesAtFace(face, edge)
                         direction0 = dbUtils.correctedEdgeVector(edge0,startVertex) 
                         direction1 = dbUtils.correctedEdgeVector(edge1,startVertex) 
