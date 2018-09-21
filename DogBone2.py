@@ -1,12 +1,10 @@
-#Author-Peter Ludikar
+#Author-Peter Ludikar, Gary Singer
 #Description-An Add-In for making dog-bone fillets.
 
-# This version is a proof of concept 
-
-# I've completely revamped the dogbone add-in by Casey Rogers and Patrick Rainsberry and David Liu
+# Peter completely revamped the dogbone add-in by Casey Rogers and Patrick Rainsberry and David Liu
 # some of the original utilities have remained, but mostly everything else has changed.
 
-# The original add-in was based on creating sketch points and extruding - I found using sketches and extrusion to be very heavy 
+# The original add-in was based on creating sketch points and extruding - Peter found using sketches and extrusion to be very heavy 
 # on processing resources, so this version has been designed to create dogbones directly by using a hole tool. So far the
 # the performance of this approach is day and night compared to the original version. 
 
@@ -26,6 +24,7 @@ import json
 
 import time
 from . import dbutils as dbUtils
+from math import sqrt as sqrt
 
 #constants - to keep attribute group and names consistent
 DOGBONEGROUP = 'dogBoneGroup'
@@ -153,7 +152,7 @@ class DogboneCommand(object):
         self.logging = 0
         self.loggingLevels = {'Notset':0,'Debug':10,'Info':20,'Warning':30,'Error':40}
 
-        self.expandModeGroup = False
+        self.expandModeGroup = True
         self.expandSettingsGroup = False
 #        self.loggingLevelsLookUp = {self.loggingLevels[k]:k for k in self.loggingLevels}
         self.levels = {}
@@ -342,8 +341,8 @@ class DogboneCommand(object):
         modeRowInput.listItems.add('Static', not self.parametric, 'resources/staticMode' )
         modeRowInput.listItems.add('Parametric', self.parametric, 'resources/parametricMode' )
         modeRowInput.tooltipDescription = "Static dogbones do not move with the underlying component geometry. \n" \
-                                "\nParametric dogbones will automatically adjust position with parametric changes to underlying geometry.\n" \
-                                "\nGeometry changes must be made via the parametric dialog\nFusion has more issues/bugs with these!"
+                                "\nParametric dogbones will automatically adjust position with parametric changes to underlying geometry. " \
+                                "Geometry changes must be made via the parametric dialog.\nFusion has more issues/bugs with these!"
         
         typeRowInput = adsk.core.ButtonRowCommandInput.cast(modeGroupChildInputs.addButtonRowCommandInput('dogboneType', 'Type', False))
         typeRowInput.listItems.add('Normal Dogbone', self.dbType == 'Normal Dogbone', 'resources/normal' )
@@ -352,7 +351,7 @@ class DogboneCommand(object):
         typeRowInput.tooltipDescription = "Minimal dogbones creates visually less prominent dogbones, but results in an interference fit " \
                                             "that, for example, will require a larger force to insert a tenon into a mortise.\n" \
                                             "\nMortise dogbones create dogbones on the shortest sides, or the longest sides.\n" \
-                                            "A piece with a tenon can be used to hide them if they're not cut all the way through."
+                                            "A piece with a tenon can be used to hide them if they're not cut all the way through the workpiece."
         
         mortiseRowInput = adsk.core.ButtonRowCommandInput.cast(modeGroupChildInputs.addButtonRowCommandInput('mortiseType', 'Mortise Type', False))
         mortiseRowInput.listItems.add('On Long Side', self.longside, 'resources/hidden/longside' )
@@ -372,19 +371,20 @@ class DogboneCommand(object):
         depthRowInput.listItems.add('From Selected Face', not self.fromTop, 'resources/fromFace' )
         depthRowInput.listItems.add('From Top Face', self.fromTop, 'resources/fromTop' )
         depthRowInput.tooltipDescription = "When \"From Top Face\" is selected, all dogbones will be extended to the top most face\n"\
-                                            "This is typically chosen when you don't want to/or can't do double sided machining"
+                                            "\nThis is typically chosen when you don't want to, or can't do, double sided machining."
  
         settingGroup = adsk.core.GroupCommandInput.cast(inputs.addGroupCommandInput('settingsGroup', 'Settings'))
         settingGroup.isExpanded = self.expandSettingsGroup
         settingGroupChildInputs = settingGroup.children
 
         benchMark = settingGroupChildInputs.addBoolValueInput("benchmark", "Benchmark time", True, "", self.benchmark)
-        benchMark.tooltip = "Enables benchmark"
-        benchMark.tooltipDescription = "When enabled, shows overall time taken to process all selected dogbones"
+        benchMark.tooltip = "Enables benchmarking"
+        benchMark.tooltipDescription = "When enabled, shows overall time taken to process all selected dogbones."
 
         logDropDownInp = adsk.core.DropDownCommandInput.cast(settingGroupChildInputs.addDropDownCommandInput("logging", "Logging level", adsk.core.DropDownStyles.TextListDropDownStyle))
-        logDropDownInp.tooltipDescription = "creates a dogbone.log file. \n" \
-                     "location: " +  os.path.join(self.appPath, 'dogBone.log')
+        logDropDownInp.tooltip = "Enables logging"
+        logDropDownInp.tooltipDescription = "Creates a dogbone.log file. \n" \
+                     "Location: " +  os.path.join(self.appPath, 'dogBone.log')
 
         logDropDownInp.listItems.add('Notset', self.logging == 0)
         logDropDownInp.listItems.add('Debug', self.logging == 10)
@@ -590,57 +590,65 @@ class DogboneCommand(object):
 
         self.writeDefaults()
 
-
-        userParams = adsk.fusion.UserParameters.cast(self.design.userParameters)
-#set up parameters, so that changes can be easily made after dogbones have been inserted
-        if not userParams.itemByName('dbToolDia'):
-            dValIn = adsk.core.ValueInput.createByString(self.circStr)
-            dParameter = userParams.add('dbToolDia', dValIn, self.design.unitsManager.defaultLengthUnits, '')
-            dParameter.isFavorite = True
-        else:
-            uParam = userParams.itemByName('dbToolDia')
-            uParam.expression = self.circStr
-            uParam.isFavorite = True
+        if self.parametric:
+            userParams = adsk.fusion.UserParameters.cast(self.design.userParameters)
             
-        if not userParams.itemByName('dbOffset'):
-            rValIn = adsk.core.ValueInput.createByString(self.offStr)
-            rParameter = userParams.add('dbOffset',rValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
-        else:
-            uParam = userParams.itemByName('dbOffset')
-            uParam.expression = self.offStr
-            uParam.comment = 'Do NOT change formula'
+            #set up parameters, so that changes can be easily made after dogbones have been inserted
+            if not userParams.itemByName('dbToolDia'):
+                dValIn = adsk.core.ValueInput.createByString(self.circStr)
+                dParameter = userParams.add('dbToolDia', dValIn, self.design.unitsManager.defaultLengthUnits, '')
+                dParameter.isFavorite = True
+            else:
+                uParam = userParams.itemByName('dbToolDia')
+                uParam.expression = self.circStr
+                uParam.isFavorite = True
+                
+            if not userParams.itemByName('dbOffset'):
+                rValIn = adsk.core.ValueInput.createByString(self.offStr)
+                rParameter = userParams.add('dbOffset',rValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
+            else:
+                uParam = userParams.itemByName('dbOffset')
+                uParam.expression = self.offStr
+                uParam.comment = 'Do NOT change formula'
 
-        if not userParams.itemByName('dbRadius'):
-            rValIn = adsk.core.ValueInput.createByString('(dbToolDia + dbOffset)/2')
-            rParameter = userParams.add('dbRadius',rValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
-        else:
-            uParam = userParams.itemByName('dbRadius')
-            uParam.expression = '(dbToolDia + dbOffset)/2'
-            uParam.comment = 'Do NOT change formula'
+            if not userParams.itemByName('dbRadius'):
+                rValIn = adsk.core.ValueInput.createByString('(dbToolDia + dbOffset)/2')
+                rParameter = userParams.add('dbRadius',rValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
+            else:
+                uParam = userParams.itemByName('dbRadius')
+                uParam.expression = '(dbToolDia + dbOffset)/2'
+                uParam.comment = 'Do NOT change formula'
 
-        if not userParams.itemByName('dbMinPercent'):
-            rValIn = adsk.core.ValueInput.createByReal(self.minimalPercent)
-            rParameter = userParams.add('dbMinPercent',rValIn, '', '')
-            rParameter.isFavorite = True
-        else:
-            uParam = userParams.itemByName('dbMinPercent')
-            uParam.value = self.minimalPercent
-            uParam.comment = ''
-            uParam.isFavorite = True
+            if not userParams.itemByName('dbMinPercent'):
+                rValIn = adsk.core.ValueInput.createByReal(self.minimalPercent)
+                rParameter = userParams.add('dbMinPercent',rValIn, '', '')
+                rParameter.isFavorite = True
+            else:
+                uParam = userParams.itemByName('dbMinPercent')
+                uParam.value = self.minimalPercent
+                uParam.comment = ''
+                uParam.isFavorite = True
 
-        if not userParams.itemByName('dbHoleOffset'):
-            oValIn = adsk.core.ValueInput.createByString('dbRadius / sqrt(2)' + (' * (1 + dbMinPercent/100)') if self.dbType == 'Minimal Dogbone' else 'dbRadius' if self.dbType == 'Mortise Dogbone' else 'dbRadius / sqrt(2)')
-            oParameter = userParams.add('dbHoleOffset', oValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
-        else:
-            uParam = userParams.itemByName('dbHoleOffset')
-            uParam.expression = 'dbRadius / sqrt(2)' + (' * (1 + dbMinPercent/100)') if self.dbType == 'Minimal Dogbone' else 'dbRadius' if self.dbType == 'Mortise Dogbone' else 'dbRadius / sqrt(2)'
-            uParam.comment = 'Do NOT change formula'
+            if not userParams.itemByName('dbHoleOffset'):
+                oValIn = adsk.core.ValueInput.createByString('dbRadius / sqrt(2)' + (' * (1 + dbMinPercent/100)') if self.dbType == 'Minimal Dogbone' else 'dbRadius' if self.dbType == 'Mortise Dogbone' else 'dbRadius / sqrt(2)')
+                oParameter = userParams.add('dbHoleOffset', oValIn, self.design.unitsManager.defaultLengthUnits, 'Do NOT change formula')
+            else:
+                uParam = userParams.itemByName('dbHoleOffset')
+                uParam.expression = 'dbRadius / sqrt(2)' + (' * (1 + dbMinPercent/100)') if self.dbType == 'Minimal Dogbone' else 'dbRadius' if self.dbType == 'Mortise Dogbone' else 'dbRadius / sqrt(2)'
+                uParam.comment = 'Do NOT change formula'
 
-        self.radius = userParams.itemByName('dbRadius').value
-        self.offset = adsk.core.ValueInput.createByString('dbOffset')
-        self.offset = adsk.core.ValueInput.createByReal(userParams.itemByName('dbHoleOffset').value)
+            self.radius = userParams.itemByName('dbRadius').value
+            self.offset = adsk.core.ValueInput.createByString('dbOffset')
+            self.offset = adsk.core.ValueInput.createByReal(userParams.itemByName('dbHoleOffset').value)
 
-        self.createParametricDogbones() if self.parametric else self.createStaticDogbones()
+            self.createParametricDogbones()
+
+        else: #Static dogbones
+
+            self.radius = (self.circVal + self.offVal) / 2
+            self.offset = self.radius / sqrt(2)  * (1 + self.minimalPercent/100) if self.dbType == 'Minimal Dogbone' else self.radius if self.dbType == 'Mortise Dogbone' else self.radius / sqrt(2)
+            
+            self.createStaticDogbones()
         
         self.logger.info('all dogbones complete\n-------------------------------------------\n')
 
