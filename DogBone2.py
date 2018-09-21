@@ -2,7 +2,7 @@
 #Description-An Add-In for making dog-bone fillets.
 
 # Peter completely revamped the dogbone add-in by Casey Rogers and Patrick Rainsberry and David Liu
-# some of the original utilities have remained, but mostly everything else has changed.
+# Some of the original utilities have remained, but a lot of the other functionality has changed.
 
 # The original add-in was based on creating sketch points and extruding - Peter found using sketches and extrusion to be very heavy 
 # on processing resources, so this version has been designed to create dogbones directly by using a hole tool. So far the
