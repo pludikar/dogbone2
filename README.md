@@ -46,7 +46,7 @@ See [How to install sample Add-Ins and Scripts](https://rawgit.com/AutodeskFusio
 4. Select the Mode - Static Dogbones or Parameterized Dogbones. Parameters are created for the second mode - dogbones will move with edge changes, and you can change diameter or offset from the normal "Change Paramaters" dialog.
 5. Choose the type of dogbone - Normal, Minimal or Mortise. See http://fablab.ruc.dk/more-elegant-cnc-dogbones/ for a description of minimal dogbones. Mortise dogbones place the dogbones along the sides, so that they can be hidden by a connecting piece with a cut tenon. Minimal and Mortise dogbones have their own option lines become visible when selected.
 6. Decide if you'd like dogbones to be cut to the top. (Useful if you have steps, but can't do two sided machining.)
-   ![TopSelection1](./Resources/top_selection1.jpg) ![TopSelection2](./Resources/top_selection2.jpg)
+   ![TopSelection1](./Resources/top_select1.jpg) ![TopSelection2](./Resources/top_select2.jpg)
 7. You can expand Settings and specify if you'd like to see benchmark time or do any logging. 
 8. Click ok.
 
