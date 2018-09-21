@@ -152,6 +152,9 @@ class DogboneCommand(object):
         self.parametric = True
         self.logging = 0
         self.loggingLevels = {'Notset':0,'Debug':10,'Info':20,'Warning':30,'Error':40}
+
+        self.expandModeGroup = False
+        self.expandSettingsGroup = False
 #        self.loggingLevelsLookUp = {self.loggingLevels[k]:k for k in self.loggingLevels}
         self.levels = {}
 
@@ -176,6 +179,8 @@ class DogboneCommand(object):
         self.defaultData['parametric'] = self.parametric
         self.defaultData['logging'] = self.logging
         self.defaultData['mortiseType'] = self.longside
+        self.defaultData['expandModeGroup'] = self.expandModeGroup
+        self.defaultData['expandSettingsGroup'] = self.expandSettingsGroup
         
         json_file = open(os.path.join(self.appPath, 'defaults.dat'), 'w', encoding='UTF-8')
         json.dump(self.defaultData, json_file, ensure_ascii=False)
@@ -209,10 +214,12 @@ class DogboneCommand(object):
 #            self.boneDirection = self.defaultData['boneDirection']
             self.dbType = self.defaultData['dbType']
             self.minimalPercent = self.defaultData['minimalPercent']
-            self.fromTop = self.defaultData['FromTop']
-            self.parametric = self.defaultData['Parametric']
-            self.logging = self.defaultData['Logging']
+            self.fromTop = self.defaultData['fromTop']
+            self.parametric = self.defaultData['parametric']
+            self.logging = self.defaultData['logging']
             self.longside = self.defaultData['mortiseType']
+            self.expandModeGroup = self.defaultData['expandModeGroup']
+            self.expandSettingsGroup = self.defaultData['expandSettingsGroup']
 
         except KeyError: 
         
@@ -328,7 +335,7 @@ class DogboneCommand(object):
                                         "Used when you want to keep the tool diameter and oversize value separate"
         
         modeGroup = adsk.core.GroupCommandInput.cast(inputs.addGroupCommandInput('modeGroup', 'Mode'))
-        modeGroup.isExpanded = False
+        modeGroup.isExpanded = self.expandModeGroup
         modeGroupChildInputs = modeGroup.children
         
         modeRowInput = adsk.core.ButtonRowCommandInput.cast(modeGroupChildInputs.addButtonRowCommandInput('modeRow', 'Mode', False))
@@ -368,7 +375,7 @@ class DogboneCommand(object):
                                             "This is typically chosen when you don't want to/or can't do double sided machining"
  
         settingGroup = adsk.core.GroupCommandInput.cast(inputs.addGroupCommandInput('settingsGroup', 'Settings'))
-        settingGroup.isExpanded = False
+        settingGroup.isExpanded = self.expandSettingsGroup
         settingGroupChildInputs = settingGroup.children
 
         benchMark = settingGroupChildInputs.addBoolValueInput("benchmark", "Benchmark time", True, "", self.benchmark)
@@ -492,8 +499,9 @@ class DogboneCommand(object):
             
             changedSelectionList = [changedInput.selection(i).entity for i in range(changedInput.selectionCount)]
             changedEdgeIdSet = set(map(calcId, changedSelectionList))  # converts list of edges to a list of their edgeIds
-            missingEdge = (set(self.selectedEdges.keys()) - changedEdgeIdSet).pop()
-            self.selectedEdges[missingEdge].select(False)
+            missingEdges = (set(self.selectedEdges.keys()) - changedEdgeIdSet)
+            for missingEdge in missingEdges:
+                self.selectedEdges[missingEdge].select(False)
             # Note - let the user manually unselect the face if they want to choose a different face
 
             return
@@ -503,7 +511,7 @@ class DogboneCommand(object):
             #         Start of adding a selected edge
             #         Edge has been added - assume that the last selection entity is the one added
             #==============================================================================
-            edge = adsk.fusion.BRepEdge.cast(changedInput.selection(changedInput.selectionCount -1).entity)
+            edge = adsk.fusion.BRepEdge.cast(changedInput.selection(changedInput.selectionCount - 1).entity)
             self.selectedEdges[calcId(edge)].select() # Get selectedFace then get selectedEdge, then call function
 
 
@@ -529,6 +537,8 @@ class DogboneCommand(object):
         self.fromTop = (inputs['depthExtent'].selectedItem.name == 'From Top Face')
         self.parametric = (inputs['modeRow'].selectedItem.name == 'Parametric')
         self.longside = (inputs['mortiseType'].selectedItem.name == 'On Long Side')
+        self.expandModeGroup = (inputs['modeGroup']).isExpanded
+        self.expandSettingsGroup = (inputs['settingsGroup']).isExpanded
 
         self.logger.debug('self.fromTop = {}'.format(self.fromTop))
         self.logger.debug('self.dbType = {}'.format(self.dbType))
@@ -539,6 +549,8 @@ class DogboneCommand(object):
         self.logger.debug('self.offVal = {}'.format(self.offVal))
         self.logger.debug('self.benchmark = {}'.format(self.benchmark))
         self.logger.debug('self.mortiseType = {}'.format(self.longside))
+        self.logger.debug('self.expandModeGroup = {}'.format(self.expandModeGroup))
+        self.logger.debug('self.expandSettingsGroup = {}'.format(self.expandSettingsGroup))
         
         self.edges = []
         self.faces = []
@@ -775,7 +787,6 @@ class DogboneCommand(object):
 
     # The main algorithm for parametric dogbones
     def createParametricDogbones(self):
-        dbUtils.messageBox("parametric!")
         self.logger.info('Creating parametric dogbones')
         self.errorCount = 0
         if not self.design:
@@ -830,6 +841,10 @@ class DogboneCommand(object):
                 for selectedEdge in selectedFace.selectedEdges.values():
                     
                     self.logger.debug('Processing edge - {}'.format(selectedEdge.edge.tempId))
+
+                    if not selectedEdge.selected:
+                        self.logger.debug('  Not selected. Skipping...')
+                        continue
 
                     if not face.isValid:
                         self.logger.debug('Revalidating face')
@@ -1007,6 +1022,10 @@ class DogboneCommand(object):
                 for selectedEdge in selectedFace.selectedEdges.values():
                     
                     self.logger.debug('Processing edge - {}'.format(selectedEdge.edge.tempId))
+
+                    if not selectedEdge.selected:
+                        self.logger.debug('  Not selected. Skipping...')
+                        continue
 
                     if not face.isValid:
                         self.logger.debug('Revalidating face')
