@@ -53,7 +53,7 @@ See [How to install sample Add-Ins and Scripts](https://rawgit.com/AutodeskFusio
 The add-in will then create the specified dogbones. If you choose parameterized, the critical dimensions are maintained in the parameters - so you can change the dimensions as and when needed.
 
 * If you need dogbones in different orientations for the same body, you'll have to run the addin once for each direction.
-* The direction for egdes for a body is locked onve *any* face is selected. De-select all faces if you want to change edge selection direction.
+* The direction for edges for a body is locked on *any* face that is selected. De-select all faces if you want to change edge selection direction.
 * Edges are selected **down** from a face. Generally, selecting a bottom face will not add any edges, but de-selecting one may remove some edges.
 
 ## To do:
