@@ -7,6 +7,11 @@ Dogbone
 
 A Fusion360 Add-In for making dog-bone fillets. Generally used in woodworking joinery.
 
+## FURTHER DEVELOPMENT
+
+This repository was used as the 'out of general sight' development platform for Version 2 of Casey Roger's (plus other later contributors) initial Fusion 360 dogbone addin.  It has since migrated [here](https://github.com/DVE2000/Dogbone) where it will reside and any further developments will take place for foreseeable future.  This repository is effectively closed.
+
+
 This is a totally overhauled version, both in edge selection and operation. The original version may be found here: https://github.com/caseycrogers/Dogbone/tree/cbe8f2c95317ae7eded43fee384171a492c6900e
 
 ## Notes:
