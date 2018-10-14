@@ -300,6 +300,7 @@ class DogboneCommand(object):
         self.initLogger()
         self.logger.setLevel(self.logging)
         self.mouseDoubleClicked = False
+        self.onChangeArgs = ""
 
         
         argsCmd = adsk.core.Command.cast(args)
@@ -423,18 +424,18 @@ class DogboneCommand(object):
         textResult = args.activeInput.parentCommand.commandInputs.itemById("debugText") #Debugging
         textResult.text = textResult.text + "onPreSelect" + '\n' #Debugging
 
-        if not self.mouseDoubleClicked:
-            return
-        changedInput = args.activeInput
-        primaryFace = adsk.fusion.BRepFace.cast(changedInput.selection(changedInput.selectionCount -1).entity)
-        primaryFaceNormal = dbUtils.getFaceNormal(primaryFace)
-                
-        for face in primaryFace.body.faces:
-            if primaryFaceNormal.isParallelTo(dbUtils.getFaceNormal(face)):
-                self.ui.activeSelections.add(face)
-        else:
-            primaryFace = adsk.fusion.BRepFace.cast(changedInput.selection(changedInput.selectionCount -1).entity)
-
+#        if not self.mouseDoubleClicked:
+#            return
+#        changedInput = args.activeInput
+#        primaryFace = adsk.fusion.BRepFace.cast(changedInput.selection(changedInput.selectionCount -1).entity)
+#        primaryFaceNormal = dbUtils.getFaceNormal(primaryFace)
+#                
+#        for face in primaryFace.body.faces:
+#            if primaryFaceNormal.isParallelTo(dbUtils.getFaceNormal(face)):
+#                self.ui.activeSelections.add(face)
+#        else:
+#            primaryFace = adsk.fusion.BRepFace.cast(changedInput.selection(changedInput.selectionCount -1).entity)
+#
 
 #        self.debugText += 'onPreSelect\n'
 
@@ -445,7 +446,7 @@ class DogboneCommand(object):
         self.mouseDoubleClicked = False
         textResult = args.firingEvent.sender.selectionEvent.activeInput.parentCommand.commandInputs.itemById("debugText") #Debugging
         textResult.text = textResult.text + "onPreSelectEnd" + '\n' #Debugging
-#        self.debugText += 'onPreSelectEnd\n'
+#        self.debugText += 'onPreSelectEnd\n
 
     def onMouseDoubleClick(self, args:adsk.core.MouseEventArgs):
         self.mouseDoubleClicked = True
@@ -454,6 +455,13 @@ class DogboneCommand(object):
 #        self.ui.activeSelections.all()        
         textResult = args.firingEvent.sender.selectionEvent.activeInput.parentCommand.commandInputs.itemById("debugText") #Debugging
         textResult.text = textResult.text + "onDoubleClick" + '\n' #Debugging
+        primaryFace = list(filter(lambda x: x.entity.objectType == adsk.fusion.BRepFace.classType(), self.ui.activeSelections.asArray() ))[-1]
+        primaryFaceNormal = dbUtils.getFaceNormal(primaryFace.entity)
+                
+        for face in primaryFace.entity.body.faces:
+            if primaryFaceNormal.isParallelTo(dbUtils.getFaceNormal(face)):
+                self.ui.activeSelections.add(face)
+    
 
     def onMouseDrag(self, args:adsk.core.MouseEventArgs):
         self.mouseDragged = True        
@@ -472,7 +480,7 @@ class DogboneCommand(object):
         
         if args.input.id == 'debugText':
             return
-        
+        self.onChangeArgs = args
         textResult = args.firingEvent.sender.selectionEvent.activeInput.parentCommand.commandInputs.itemById("debugText") #Debugging
         textResult.text = textResult.text + "onChange" + '\n' #Debugging
         
@@ -498,8 +506,6 @@ class DogboneCommand(object):
             #==============================================================================
             #            processing changes to face selections
             #==============================================================================
-
-            initSelectionCount = changedInput.selectionCount
 
             numSelectedFaces = sum(1 for face in self.selectedFaces.values() if face.selected) 
             if numSelectedFaces > changedInput.selectionCount:               
@@ -531,55 +537,44 @@ class DogboneCommand(object):
             #         The API should really do better!!
             #==============================================================================
 
-            if self.mouseDoubleClicked:
-                primaryFace = adsk.fusion.BRepFace.cast(changedInput.selection(changedInput.selectionCount -1).entity)
-                primaryFaceNormal = dbUtils.getFaceNormal(primaryFace)
                 
-                for face in primaryFace.body.faces:
-                    if primaryFaceNormal.isParallelTo(dbUtils.getFaceNormal(face)):
-                        self.ui.activeSelections.add(face)
-            else:
-                primaryFace = adsk.fusion.BRepFace.cast(changedInput.selection(changedInput.selectionCount -1).entity)
-                
-            faceSelections = list(filter(lambda x: x.entity.objectType == adsk.fusion.BRepFace.classType(), self.ui.activeSelections.asArray() ))
+            changedEntity = list(filter(lambda x: x.entity.objectType == adsk.fusion.BRepFace.classType(), self.ui.activeSelections.asArray() ))[-1].entity
             
-            for selection in faceSelections[initSelectionCount - len(faceSelections):] :
+#            changedEntity = adsk.fusion.BRepFace.cast(changedInput.selection(changedInput.selectionCount -1).entity)
 
-#                face = selection.entity
-#                
-                changedInput.commandInputs.itemById('edgeSelect').isVisible = True  
+            changedInput.commandInputs.itemById('edgeSelect').isVisible = True  
+            
+#            changedEntity = selection.entity #changedInput.selection(changedInput.selectionCount-1).entity
+            if changedEntity.assemblyContext:
+                activeOccurrenceName = changedEntity.assemblyContext.name
+            else:
+                activeOccurrenceName = changedEntity.body.name
                 
-                changedEntity = selection.entity #changedInput.selection(changedInput.selectionCount-1).entity
-                if changedEntity.assemblyContext:
-                    activeOccurrenceName = changedEntity.assemblyContext.name
-                else:
-                    activeOccurrenceName = changedEntity.body.name
-                    
-                if changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext:
-                    changedEntityName = changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]
-                else:
-                    changedEntityName = changedEntity.body.name
-                
-                faceId = str(changedEntity.tempId) + ":" + changedEntityName 
-                if faceId in self.selectedFaces :
-                    changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
-                    self.selectedFaces[faceId].selectAll(True) 
-                    changedInput.commandInputs.itemById('select').hasFocus = True
-                    return
-                newSelectedFace = SelectedFace(
-                                                self, 
-                                                changedEntity,
-                                                faceId,
-                                                changedEntity.tempId,
-                                                changedEntityName,
-                                                changedEntity.nativeObject.pointOnFace if changedEntity.assemblyContext else changedEntity.pointOnFace,
-                                                changedInput.commandInputs.itemById('edgeSelect')
-                                              )  # creates a collecton (of edges) associated with a faceId
-                faces = []
-                faces = self.selectedOccurrences.get(activeOccurrenceName, faces)
-                faces.append(newSelectedFace)
-                self.selectedOccurrences[activeOccurrenceName] = faces # adds a face to a list of faces associated with this occurrence
-                self.selectedFaces[faceId] = newSelectedFace
+            if changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext:
+                changedEntityName = changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]
+            else:
+                changedEntityName = changedEntity.body.name
+            
+            faceId = str(changedEntity.tempId) + ":" + changedEntityName 
+            if faceId in self.selectedFaces :
+                changedInput.commandInputs.itemById('edgeSelect').hasFocus = True
+                self.selectedFaces[faceId].selectAll(True) 
+                changedInput.commandInputs.itemById('select').hasFocus = True
+                return
+            newSelectedFace = SelectedFace(
+                                            self, 
+                                            changedEntity,
+                                            faceId,
+                                            changedEntity.tempId,
+                                            changedEntityName,
+                                            changedEntity.nativeObject.pointOnFace if changedEntity.assemblyContext else changedEntity.pointOnFace,
+                                            changedInput.commandInputs.itemById('edgeSelect')
+                                          )  # creates a collecton (of edges) associated with a faceId
+            faces = []
+            faces = self.selectedOccurrences.get(activeOccurrenceName, faces)
+            faces.append(newSelectedFace)
+            self.selectedOccurrences[activeOccurrenceName] = faces # adds a face to a list of faces associated with this occurrence
+            self.selectedFaces[faceId] = newSelectedFace
 
 
                  #end of processing faces
