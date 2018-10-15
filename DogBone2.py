@@ -409,25 +409,26 @@ class DogboneCommand(object):
             self.handlers.make_handler(adsk.core.InputChangedEventHandler, self.onChange))
         cmd.mouseDrag.add(self.handlers.make_handler(adsk.core.MouseEventHandler, self.onMouseDrag))
         cmd.mouseDoubleClick.add(self.handlers.make_handler(adsk.core.MouseEventHandler, self.onMouseDoubleClick))
+        cmd.mouseDragBegin.add(self.handlers.make_handler(adsk.core.MouseEventHandler, self.onMouseDragBegin))
         cmd.mouseDragEnd.add(self.handlers.make_handler(adsk.core.MouseEventHandler, self.onMouseDragEnd))
         cmd.preSelectEnd.add(self.handlers.make_handler(adsk.core.SelectionEventHandler, self.onPreSelectEnd))
         cmd.preSelect.add(self.handlers.make_handler(adsk.core.SelectionEventHandler, self.onPreSelect))
 
     def onPreSelect(self, args):
-        textResult = args.activeInput.parentCommand.commandInputs.itemById("debugText") #Debugging
+        textResult = args.firingEvent.sender.commandInputs.itemById("debugText") #Debugging
         textResult.text = textResult.text + "onPreSelect" + '\n' #Debugging
 
 
     def onPreSelectEnd(self, args):
         self.mouseDragged = False
         self.mouseDoubleClicked = False
-        textResult = args.activeInput.parentCommand.commandInputs.itemById("debugText") #Debugging
+        textResult = args.firingEvent.sender.commandInputs.itemById("debugText") #Debugging
         textResult.text = textResult.text + "onPreSelectEnd" + '\n' #Debugging
 
     def onMouseDoubleClick(self, args:adsk.core.MouseEventArgs):
         self.mouseDoubleClicked = True
 
-        textResult = args.firingEvent.sender.selectionEvent.activeInput.parentCommand.commandInputs.itemById("debugText") #Debugging
+        textResult = args.firingEvent.sender.commandInputs.itemById("debugText") #Debugging
         textResult.text = textResult.text + "onDoubleClick" + '\n' #Debugging
         primaryFace = list(filter(lambda x: x.entity.objectType == adsk.fusion.BRepFace.classType(), self.ui.activeSelections.asArray() ))[-1]
         primaryFaceNormal = dbUtils.getFaceNormal(primaryFace.entity)
@@ -444,6 +445,11 @@ class DogboneCommand(object):
         self.mouseDragged = True        
         textResult = args.firingEvent.sender.commandInputs.itemById("debugText") #Debugging
         textResult.text = textResult.text + "onMouseDragEnd" + '\n' #Debugging
+
+    def onMouseDragBegin(self, args:adsk.core.MouseEventArgs):
+        self.mouseDragged = True        
+        textResult = args.firingEvent.sender.commandInputs.itemById("debugText") #Debugging
+        textResult.text = textResult.text + "onMouseDragBegin" + '\n' #Debugging
 #        self.debugText += 'onMouseDragEnd\n'
         
         
@@ -483,6 +489,8 @@ class DogboneCommand(object):
             #==============================================================================
             #            processing changes to face selections
             #==============================================================================
+
+            self.mouseDragged = False
 
             numSelectedFaces = sum(1 for face in self.selectedFaces.values() if face.selected)
             activeSelectedFaces = list(filter(lambda x: x.entity.objectType == adsk.fusion.BRepFace.classType(), self.ui.activeSelections.asArray() ))
@@ -777,15 +785,15 @@ class DogboneCommand(object):
 #            arr = list(filter(lambda x: x.entity.objectType == adsk.fusion.BRepFace.classType(), self.ui.activeSelections.asArray() ))
                         
                     
-#            if not len( self.selectedOccurrences ): #get out if the face selection list is empty
-#                eventArgs.isSelectable = False if self.mouseDragged else True
-#                debugTempId('list Empty:' + str(self.mouseDragged))
-#                return
+            if not len( self.selectedOccurrences ): #get out if the face selection list is empty
+                eventArgs.isSelectable = not self.mouseDragged
+                debugTempId('list Empty:' + str(self.mouseDragged))
+                return
 
             activeEntityId = calcId(eventArgs.selection.entity)
             
             if activeEntityId not in self.selectedFaces:
-                eventArgs.isSelectable = False
+                eventArgs.isSelectable = True
                 return
 
 #                activeEntityPoint = eventArgs.selection.entity.pointOnFace
