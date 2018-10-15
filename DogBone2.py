@@ -792,9 +792,10 @@ class DogboneCommand(object):
 
             activeEntityId = calcId(eventArgs.selection.entity)
             
-            if activeEntityId not in self.selectedFaces:
-                eventArgs.isSelectable = True
-                return
+#            if activeEntityId not in self.selectedFaces:
+#                debugTempId('not selectedFace:' + str(self.mouseDragged))
+#                eventArgs.isSelectable = not self.mouseDragged
+#                return
 
 #                activeEntityPoint = eventArgs.selection.entity.pointOnFace
 #                activeFace = reValidateFace(self.rootComp, activeEntityPoint)
