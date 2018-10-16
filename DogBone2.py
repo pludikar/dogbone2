@@ -407,10 +407,12 @@ class DogboneCommand(object):
             self.handlers.make_handler(adsk.core.ValidateInputsEventHandler, self.onValidate))
         cmd.inputChanged.add(
             self.handlers.make_handler(adsk.core.InputChangedEventHandler, self.onChange))
-        cmd.mouseDrag.add(self.handlers.make_handler(adsk.core.MouseEventHandler, self.onMouseDrag))
+#        cmd.mouseDrag.add(self.handlers.make_handler(adsk.core.MouseEventHandler, self.onMouseDrag))
         cmd.mouseDoubleClick.add(self.handlers.make_handler(adsk.core.MouseEventHandler, self.onMouseDoubleClick))
-        cmd.mouseDragBegin.add(self.handlers.make_handler(adsk.core.MouseEventHandler, self.onMouseDragBegin))
+#        cmd.mouseDragBegin.add(self.handlers.make_handler(adsk.core.MouseEventHandler, self.onMouseDragBegin))
         cmd.mouseDragEnd.add(self.handlers.make_handler(adsk.core.MouseEventHandler, self.onMouseDragEnd))
+#        cmd.mouseMove.add(self.handlers.make_handler(adsk.core.MouseEventHandler, self.onMouseMove))
+        cmd.mouseUp.add(self.handlers.make_handler(adsk.core.MouseEventHandler, self.onMouseUp))
         cmd.preSelectEnd.add(self.handlers.make_handler(adsk.core.SelectionEventHandler, self.onPreSelectEnd))
         cmd.preSelect.add(self.handlers.make_handler(adsk.core.SelectionEventHandler, self.onPreSelect))
 
@@ -445,6 +447,16 @@ class DogboneCommand(object):
         self.mouseDragged = True        
         textResult = args.firingEvent.sender.commandInputs.itemById("debugText") #Debugging
         textResult.text = textResult.text + "onMouseDragEnd" + '\n' #Debugging
+
+#    def onMouseMove(self, args:adsk.core.MouseEventArgs):
+#        self.mouseDragged = False
+#        textResult = args.firingEvent.sender.commandInputs.itemById("debugText") #Debugging
+#        textResult.text = textResult.text + "onMouseMove" + '\n' #Debugging
+
+    def onMouseUp(self, args:adsk.core.MouseEventArgs):
+        self.mouseDragged = False
+#        textResult = args.firingEvent.sender.commandInputs.itemById("debugText") #Debugging
+#        textResult.text = textResult.text + "onMouseUp" + '\n' #Debugging
 
     def onMouseDragBegin(self, args:adsk.core.MouseEventArgs):
         self.mouseDragged = True        
