@@ -414,7 +414,7 @@ class DogboneCommand(object):
 #        cmd.mouseMove.add(self.handlers.make_handler(adsk.core.MouseEventHandler, self.onMouseMove))
         cmd.mouseUp.add(self.handlers.make_handler(adsk.core.MouseEventHandler, self.onMouseUp))
         cmd.preSelectEnd.add(self.handlers.make_handler(adsk.core.SelectionEventHandler, self.onPreSelectEnd))
-        cmd.preSelect.add(self.handlers.make_handler(adsk.core.SelectionEventHandler, self.onPreSelect))
+#        cmd.preSelect.add(self.handlers.make_handler(adsk.core.SelectionEventHandler, self.onPreSelect))
 
     def onPreSelect(self, args):
         textResult = args.firingEvent.sender.commandInputs.itemById("debugText") #Debugging
