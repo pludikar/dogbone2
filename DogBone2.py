@@ -480,8 +480,9 @@ class DogboneCommand(object):
         textResult.text = textResult.text + "onChange" + '\n' #Debugging
         
 #        faces = set(self.selectedOccurrences)
-        for primaryFace in self.selectedOccurrences.values():
-            self.ui.activeSelections.add(primaryFace[0].face)
+        if self.mouseDragged:
+            for primaryFace in self.selectedOccurrences.values():
+                self.ui.activeSelections.add(primaryFace[0].face)
         
         changedInput = adsk.core.CommandInput.cast(args.input)
 #        self.logger.debug('input changed- {}'.format(changedInput.id))
