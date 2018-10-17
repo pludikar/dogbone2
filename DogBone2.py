@@ -299,7 +299,7 @@ class DogboneCommand(object):
         self.debugText = ""
         self.initLogger()
         self.logger.setLevel(self.logging)
-        self.mouseDoubleClicked = False
+#        self.mouseDoubleClicked = False
         self.onChangeArgs = ""
 
         
@@ -413,25 +413,27 @@ class DogboneCommand(object):
         cmd.mouseDragEnd.add(self.handlers.make_handler(adsk.core.MouseEventHandler, self.onMouseDragEnd))
 #        cmd.mouseMove.add(self.handlers.make_handler(adsk.core.MouseEventHandler, self.onMouseMove))
         cmd.mouseUp.add(self.handlers.make_handler(adsk.core.MouseEventHandler, self.onMouseUp))
-        cmd.preSelectEnd.add(self.handlers.make_handler(adsk.core.SelectionEventHandler, self.onPreSelectEnd))
+#        cmd.preSelectEnd.add(self.handlers.make_handler(adsk.core.SelectionEventHandler, self.onPreSelectEnd))
 #        cmd.preSelect.add(self.handlers.make_handler(adsk.core.SelectionEventHandler, self.onPreSelect))
 
-    def onPreSelect(self, args):
-        textResult = args.firingEvent.sender.commandInputs.itemById("debugText") #Debugging
-        textResult.text = textResult.text + "onPreSelect" + '\n' #Debugging
+#    def onPreSelect(self, args):
+#        textResult = args.firingEvent.sender.commandInputs.itemById("debugText") #Debugging
+#        textResult.text = textResult.text + "onPreSelect" + '\n' #Debugging
 
 
     def onPreSelectEnd(self, args):
         self.mouseDragged = False
-        self.mouseDoubleClicked = False
+#        self.mouseDoubleClicked = False
         textResult = args.firingEvent.sender.commandInputs.itemById("debugText") #Debugging
         textResult.text = textResult.text + "onPreSelectEnd" + '\n' #Debugging
 
     def onMouseDoubleClick(self, args:adsk.core.MouseEventArgs):
-        self.mouseDoubleClicked = True
+#        self.mouseDoubleClicked = True
 
         textResult = args.firingEvent.sender.commandInputs.itemById("debugText") #Debugging
         textResult.text = textResult.text + "onDoubleClick" + '\n' #Debugging
+        if not self.ui.activeSelections.count:
+            return
         primaryFace = list(filter(lambda x: x.entity.objectType == adsk.fusion.BRepFace.classType(), self.ui.activeSelections.asArray() ))[-1]
         primaryFaceNormal = dbUtils.getFaceNormal(primaryFace.entity)
                 
@@ -440,13 +442,13 @@ class DogboneCommand(object):
                 self.ui.activeSelections.add(face)
     
 
-    def onMouseDrag(self, args:adsk.core.MouseEventArgs):
-        self.mouseDragged = True        
-
+#    def onMouseDrag(self, args:adsk.core.MouseEventArgs):
+#        self.mouseDragged = True        
+#
     def onMouseDragEnd(self, args:adsk.core.MouseEventArgs):
         self.mouseDragged = True        
-        textResult = args.firingEvent.sender.commandInputs.itemById("debugText") #Debugging
-        textResult.text = textResult.text + "onMouseDragEnd" + '\n' #Debugging
+#        textResult = args.firingEvent.sender.commandInputs.itemById("debugText") #Debugging
+#        textResult.text = textResult.text + "onMouseDragEnd" + '\n' #Debugging
 
 #    def onMouseMove(self, args:adsk.core.MouseEventArgs):
 #        self.mouseDragged = False
@@ -479,11 +481,7 @@ class DogboneCommand(object):
         textResult = args.firingEvent.sender.commandInputs.itemById("debugText") #Debugging
         textResult.text = textResult.text + "onChange" + '\n' #Debugging
         
-#        faces = set(self.selectedOccurrences)
-        if self.mouseDragged:
-            for primaryFace in self.selectedOccurrences.values():
-                self.ui.activeSelections.add(primaryFace[0].face)
-        
+#        faces = set(self.selectedOccurrences)       
         changedInput = adsk.core.CommandInput.cast(args.input)
 #        self.logger.debug('input changed- {}'.format(changedInput.id))
         
@@ -503,11 +501,14 @@ class DogboneCommand(object):
             #            processing changes to face selections
             #==============================================================================
 
-            self.mouseDragged = False
-
             numSelectedFaces = sum(1 for face in self.selectedFaces.values() if face.selected)
             activeSelectedFaces = list(filter(lambda x: x.entity.objectType == adsk.fusion.BRepFace.classType(), self.ui.activeSelections.asArray() ))
-            
+
+            if self.mouseDragged:
+                for primaryFace in self.selectedOccurrences.values():
+                    if primaryFace not in activeSelectedFaces:                    
+                        self.ui.activeSelections.add(primaryFace[0].face)
+           
             if numSelectedFaces > len(activeSelectedFaces):   #changedInput.selectionCount:               
                 # a face has been removed
                 
@@ -798,10 +799,6 @@ class DogboneCommand(object):
 #            arr = list(filter(lambda x: x.entity.objectType == adsk.fusion.BRepFace.classType(), self.ui.activeSelections.asArray() ))
                         
                     
-            if not len( self.selectedOccurrences ): #get out if the face selection list is empty
-                eventArgs.isSelectable = not self.mouseDragged
-                debugTempId('list Empty:' + str(self.mouseDragged))
-                return
 
             activeEntityId = calcId(eventArgs.selection.entity)
             
@@ -818,6 +815,12 @@ class DogboneCommand(object):
                 # dealing with a root component body
 
                 activeBodyName = eventArgs.selection.entity.body.name
+
+                if activeBodyName not in self.selectedOccurrences: #get out if the face selection list is empty
+                    eventArgs.isSelectable = not self.mouseDragged
+                    debugTempId('list Empty:' + str(self.mouseDragged))
+                    return
+
                 try:            
                     faces = self.selectedOccurrences[activeBodyName]
                     for face in faces:
@@ -851,6 +854,11 @@ class DogboneCommand(object):
             activeOccurrence = eventArgs.selection.entity.assemblyContext
             activeOccurrenceName = activeOccurrence.name
             activeComponent = activeOccurrence.component
+
+            if activeOccurrenceName not in self.selectedOccurrences: #get out if the face selection list is empty
+                eventArgs.isSelectable = not self.mouseDragged
+                debugTempId('list Empty:' + str(self.mouseDragged))
+                return
             
             # we got here because the face is either not in root or is on the existing selected list    
             # at this point only need to check for duplicate component selection - Only one component allowed, to save on conflict checking
