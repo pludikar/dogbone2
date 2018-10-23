@@ -24,6 +24,7 @@ import json
 
 import time
 from . import dbutils as dbUtils
+from . import dbModelObject as dbModel
 from math import sqrt as sqrt
 
 #constants - to keep attribute group and names consistent
@@ -53,12 +54,12 @@ makeNative = lambda x: x.nativeObject if x.nativeObject else x
 reValidateFace = lambda comp, x: comp.findBRepUsingPoint(x, adsk.fusion.BRepEntityTypes.BRepFaceEntityType,-1.0 ,False ).item(0)
 
 class SelectedEdge:
-'''
-#==============================================================================
-# Edge object definition
-#
-#==============================================================================
-'''
+    """
+    #==============================================================================
+    # Edge object definition
+    #
+    #==============================================================================
+    """
 
     def __init__(self, edge, edgeId, activeEdgeName, tempId, selectedFace):
         self.edge = edge
@@ -73,12 +74,12 @@ class SelectedEdge:
 
 
 class SelectedFace:
-'''
-Face Object definition
-''' 
+    '''
+    Face Object definition
+    ''' 
 
 
-   def __init__(self, dog, face, faceId, tempId, occurrenceName, refPoint, commandInputsEdgeSelect):
+    def __init__(self, dog, face, faceId, tempId, occurrenceName, refPoint, commandInputsEdgeSelect):
         self.dog = dog
         self.face = face # BrepFace
         self.faceId = faceId
@@ -575,7 +576,7 @@ class DogboneCommand(object):
                     activeOccurrenceName = changedEntity.body.name
                     
                 if changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext:
-                    changedEntityName = changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]
+                    changedEntityName = changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]  #same faces on different Contexts will give same tempId - occurrence numbers adds a differentiator
                 else:
                     changedEntityName = changedEntity.body.name
                 
