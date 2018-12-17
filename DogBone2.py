@@ -338,6 +338,7 @@ class DogboneCommand(object):
         self.logger.setLevel(self.logging)
 #        self.mouseDoubleClicked = False
         self.onChangeArgs = ""
+        self.model = dbModel.Model()
 
         
         argsCmd = adsk.core.Command.cast(args)
@@ -514,6 +515,7 @@ class DogboneCommand(object):
 
 #        self.logger.debug('input changed- {}'.format(changedInput.id))
         if changedInput.id == 'select':
+            
 
             #==============================================================================
             #            processing changes to face selections
@@ -579,7 +581,20 @@ class DogboneCommand(object):
                     changedEntityName = changedInput.selection(changedInput.selectionCount-1).entity.assemblyContext.name.split(':')[-1]  #same faces on different Contexts will give same tempId - occurrence numbers adds a differentiator
                 else:
                     changedEntityName = changedEntity.body.name
-                
+                    
+                testBody = self.model.addBody(changedEntity.body)
+#                selectionCollection = self.ui.activeSelections.all
+#                lst0 = [face for i, face in enumerate(changed.entity.body.faces) if i % 3]
+#                for i in lst0:
+#                    selectionCollection.add(i)
+#                    
+#                self.ui.activeSelections.all = selectionCollection    
+#                
+                    
+#                if "Body1" in self.model.bodies:
+#                    self.model.bodies("Body1")
+                testBody.addFace(changedEntity)
+#                
                 faceId = str(changedEntity.tempId) + ":" + changedEntityName 
                 if faceId in self.selectedFaces :
                     changedInput.commandInputs.itemById('edgeSelect').hasFocus = True

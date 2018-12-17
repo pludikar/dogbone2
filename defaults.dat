@@ -1,1 +1,1 @@
-{"fromTop": false, "offVal": 0.0, "circStr": "0.25 in", "expandSettingsGroup": true, "dbType": "Normal Dogbone", "minimalPercent": 10.0, "parametric": true, "logging": 10, "expandModeGroup": true, "benchmark": false, "offStr": "0 cm", "circVal": 0.635, "mortiseType": true}
+{"fromTop": false, "circStr": "0.25 in", "offVal": 0.0, "expandSettingsGroup": true, "offStr": "0 cm", "benchmark": false, "parametric": false, "expandModeGroup": true, "circVal": 0.635, "mortiseType": true, "minimalPercent": 10.0, "logging": 10, "dbType": "Normal Dogbone"}
