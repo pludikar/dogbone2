@@ -114,7 +114,7 @@ def getFaceNormal(face):
     
     
 def messageBox(*args):
-    return adsk.core.Application.get().userInterface.messageBox(*args)
+    adsk.core.Application.get().userInterface.messageBox(*args)
 
 
 def getTopFace(selectedFace):
