@@ -13,20 +13,20 @@ import json
 from functools import reduce, lru_cache
 
 from ..common import dbutils as dbUtils
-from ..common import dbParamsClass
-from .dbEdges import dbEdges, dbEdge
+# from . import dataclasses
+from . import dbEdge, register
 from math import sqrt, pi
 
 
 
 class DbFaces:
 
-    def __init__(self, parent):
-        self.group = weakref.ref(parent)()
-        self.dbFaces = self.group.dbFaces
-        self.dbEdges = self.group.dbEdges
-        self.faces = []
-
+    def __init__(self):
+    #     self.group = weakref.ref(parent)()
+    #     self.dbFaces = self.group.dbFaces
+    #     self.dbEdges = self.group.dbEdges
+        # self.faces = []
+        self.registry = register.Register()
     def __iter__(self):
         for face in self.faces:
             yield face
@@ -36,15 +36,12 @@ class DbFaces:
     #     for face in body.faces:
 
     def addFace(self, face):
-        self.faces.append(DbFace(face, self))
+        DbFace(face)
 
-    @property
-    def groupFaces(self):
-        return [face for face in self.dbFaces if face.group == self.group]
-
-    @property
-    def groupEdges(self):
-        return [edge for edge in self.dbEdges if edge.group == self.group]
+    def addAllFaces(self, face):
+        faceList = dbUtils.getAllFaces(face)
+        for face in faceList:
+            DbFace(face)
 
 class DbFace:
     """
@@ -62,46 +59,32 @@ class DbFace:
         each face or edge selection that is changed will reflect in the parent management object selectedOccurrences, selectedFaces and selectedEdges
     """
 
-    def __init__(self, face, parent, preload = False):  #preload is used when faces are created from attributes.  preload will be a namedtuple of faceHash and occHash
+    def __init__(self, face):  #preload is used when faces are created from attributes.  preload will be a namedtuple of faceHash and occHash
         self.logger = logging.getLogger('dogbone.mgr.edge')
 
         self.logger.info('---------------------------------{}---------------------------'.format('creating face'))
         
-        self.face = face # BrepFace
+        register.FaceObject(self)
+
+        self.entity = face
+
         self.faceNormal = dbUtils.getFaceNormal(self.face)
         
         self.faceHash = hash(face.entityToken)
 
-        self.tempId = face.tempId
         self._selected = True # record of all valid faces are kept, but only ones that are selected==True are processed for dogbones???
-        self.group = weakref.ref(parent)()
 
-        self.occurrenceHash = dbUtils.calcOccHash(face) if not preload else preload.occHash
-        self.topFacePlane = self.group.topFacePlanes.setdefault(self.occurrenceHash, dbUtils.getTopFacePlane(face))
+        self.occurrence = face.assemblyContext if face.assemblyContext else None
+
+        self.occurrenceHash = hash(face.assemblyContext.entityToken) if face.assemblyContext else face.body.entityToken
         
-        self.registeredFaces = self.group.registeredFaces.setdefault(self.occurrenceHash, {})
-        self.registeredFaces[self.faceHash] = self
-        self.registeredEdges = self.group.registeredEdges.setdefault(self.faceHash, {})
+        self.topFacePlane, self.topFacePlaneHash = dbUtils.getTopFacePlane(face)
         
-        self.selectedFaces = self.group.selectedFaces.setdefault(self.occurrenceHash, {})
-        self.selectedEdges = self.group.selectedEdges.setdefault(self.faceHash, {})
         self.logger.debug('{} - face initiated'.format(self.faceHash))           
 
         #==============================================================================
         #             this is where inside corner edges, dropping down from the face are processed
         #==============================================================================
-        
-        if preload:
-            faceAttribute = self.face.attributes.itemByName(DBGROUP, 'faceId:'+self.faceHash)
-            edgeHashes = json.loads(faceAttribute.value)
-            for edgeHash in edgeHashes:
-                edgeAttributes = parent.design.findAttributes(DBGROUP, 'edgeId:'+edgeHash)
-                self.selected = (True, False) if len(edgeAttributes)>0 else (False, False)
-                for edgeAttribute in edgeAttributes:
-                    edge = edgeAttribute.parent
-                    edgeObject = SelectedEdge(edge, self, attributes = EdgeParams(edgeHash, edgeAttribute.value))
-            return
-            
         
         self.brepEdges = dbUtils.findInnerCorners(face) #get all candidate edges associated with this face
         if not self.brepEdges:
@@ -114,13 +97,12 @@ class DbFace:
             if edge.isDegenerate:
                 continue
             try:
-                
-                edgeObject = SelectedEdge(edge, self)
+                dbEdge.DbEdge(edge, self) #create a new edgeObject
                 self.logger.debug(' {} - edge object added'.format(edgeObject.edgeHash))
     
             except:
                 dbUtils.messageBox('Failed at edge:\n{}'.format(traceback.format_exc()))
-        self.selected = True
+
         self.logger.debug('registered component count = {}'.format(len(self.parent.registeredFaces.keys())))
 
     def __hash__(self):
@@ -128,18 +110,15 @@ class DbFace:
                 
     def __del__(self):
         self.logger.debug("face {} deleted".format(self.faceHash))
-        del self.registeredFaces[self.faceHash]
-        del self.selectedFaces[self.faceHash]
-        self.logger.debug(' {} - face key deleted from registeredFaces'.format(self.faceHash))
-        self.logger.debug('registered component count = {}'.format(len(self.parent.registeredFaces)))
-        for edgeObject in self.registeredEdges.values():
-            del edgeObject
-            self.logger.debug(' {} - edge object deleted'.format(edgeObject.edgeHash))
-        del self.parent.registeredEdges[self.faceHash]
+        register.remove(self)
         self.logger.debug('registered Faces count = {}'.format(len(self.registeredFaces)))               
         self.logger.debug('selected Faces count = {}'.format(len(self.selectedFaces)))               
         self.logger.debug('registered edges count = {}'.format(len(self.registeredEdges)))               
         self.logger.debug('selected edges count = {}'.format(len(self.selectededEdges)))
+
+    @property
+    def entity(self):
+        return self.entity
         
     def refreshAttributes(self):
         self.face.attributes.add(DBGROUP, 'faceId:'+self.faceHash, json.dumps(list(self.registeredEdges.keys())) if self.selected else '')
@@ -152,6 +131,10 @@ class DbFace:
     def setAttributeValue(self):
         
         self.face.attributes.add(DBGROUP, 'faceId:'+self.occurrenceHash, value)
+
+    @property
+    def entity(self):
+        return self.entity
 
     @property
     def selected(self):

@@ -12,57 +12,47 @@ import traceback
 import weakref
 import json
 from functools import reduce, lru_cache
+from typing import Type
 
-from common import dbutils as dbUtils
-from common.dbutils import calcOccHash
-from common import dbParamsClass
+from ..common import dbutils as dbUtils
+from . import dataclasses, register, dbFaces
 
 from math import sqrt, pi
 
-class dbEdges():
+# class dbEdges():
 
-    def __init__(self, parentFace):
-
-        self.face = weakref.ref(parentFace)()
-        self.edges = []
-
-    def __iter__(self):
-        for edge in self.edges:
-            yield edge
+#     def __init__(self, parentFace):
+        
+#     def __iter__(self):
+#         for edge in self.edges:
+#             yield edge
 
 class dbEdge():
-    _dbParams = {}
-    def __init__(self, edge, parentFace, mode = 0x0, attributes = False):
+
+    def __init__(self, edge: adsk.fusion.BRepEdge, parentFace: Type):
         self.logger = logging.getLogger('dogbone.mgr.edge')
         self.logger.info('---------------------------------{}---------------------------'.format('creating edge'))
-        self.edge = edge  #brep edge
-        self.edgeHash = hash((calcHash(edge)))
-        self.tempId = edge.tempId
+        register.EdgeObject(self)  #create an edge object 
+        self.entity = edge  #brep edge
+        self.edgeHash = hash(edge.entityToken)
 
-        self.face = weakref.ref(parentFace)()
-        self.group = self.face.group
-        self.edge = edge
-        self.selectedEdges = self.face.selectedEdges
-        self.selectedEdges[self.edgeHash] = self
-        self.registeredEdges = self.face.registeredEdges
-        self.registeredEdges[self.edgeHash] = self
         self._selected = True 
-        self.mode = mode
-        self.selected = True if attributes else False  #invokes selected property
-        #   self.edge.attributes.add(DBGROUP, DBEDGE_REGISTERED, 'True')
+        # self.selected = True if attributes else False  #invokes selected property
+
         self.logger.debug('{} - edge initiated'.format(self.edgeHash))
-        self.topPlane = self.parent.topFacePlane
+        self.topPlane = parentFace.topFacePlane
 
     def __hash__(self):
         return self.edgeHash
         
     def __del__(self):
         self.logger.debug('edge {} deleted'.format(self.edgeHash))
-        del self.registeredEdges[self.edgeHash]
+        register.remove(self)
         self.logger.debug('{} - edge deleted'.format(self.edgeHash))
-        if not self.registeredEdges:
-            del self.face.registeredEdges[self.face.faceHash]
-            self.logger.debug('{} - registered edge dict deleted'.format(self.edgeHash))
+
+    @property
+    def entity(self):
+        return self.entity
             
     def updateAttributes(self):
         dbParamsJson = self._dbParams.jsonStr

@@ -23,9 +23,10 @@ import hashlib
 
 from ..common import dbutils as dbUtils
 from ..dbClasses.dataclasses import DbParams
-from ..common.dbutils import calcOccHash, calcHash 
+# from ..common.dbutils import calcOccHash, calcHash 
 from ..dbClasses.dbFaces import DbFaces, DbFace
 from math import sqrt, pi
+from ..dbClasses import Register
 
 #==============================================================================
 # constants - to keep attribute group and names consistent
@@ -214,7 +215,7 @@ class DbGroup:
         self.topFacePlane, self.groupHash = dbUtils.getTopFacePlane(faceEntity)
         # self.groupHash = hash(self.topFacePlane.entityToken, self._dbParams)
                 
-        self.logger.debug('{calcOccHash(self.topFacePlane)} - group initiated')    
+        self.logger.debug(f'{self.topFacePlane} - group initiated')    
 
     def __hash__(self):
         return self.groupHash
@@ -258,12 +259,13 @@ class DbGroup:
         self.logger.debug('selected Faces before = {}'.format(pformat(self.selectedFaces)))
         self.logger.debug('registered Edges before = {}'.format(pformat(self.registeredEdges)))
         self.logger.debug('selected Edges before = {}'.format(pformat(self.selectedEdges)))
-        occHash = calcOccHash(face)
+
+        r.Registry.remove(face)
         face.attributes.itemByName(DBGROUP, DBFACE_REGISTERED).deleteMe()
         faceObject = self.registeredFaces[occHash][face.entityToken]
         faceObject.selected = False
-        if not self.selectedFaces[occHash]:
-            self.remove(occHash)
+        # if not self.selectedFaces[occHash]:
+        #     self.remove(occHash)
         self.logger.debug('registered Faces after = {}'.format(pformat(self.registeredFaces)))
         self.logger.debug('selected Faces after = {}'.format(pformat(self.selectedFaces)))
         self.logger.debug('registered Edges after = {}'.format(pformat(self.registeredEdges)))

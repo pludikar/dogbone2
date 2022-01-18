@@ -9,22 +9,19 @@ import json
 
 import time
 from ..common import dbutils as util
-from ..common.dbutils import calcHash
 from ..common import decorators as d
 from math import sqrt, pi
-from ..dbClasses import dataclasses as dc, faceEdgeMgr, dbFaces, dbEdges
+from ..dbClasses import dataclasses as dc, dbFaces, dbEdge
 from ..dbClasses import register as r
 
 debugging = True
-r.FaceObject('123')
-r.EdgeObject('456')
+
 if debugging:
     import importlib
     importlib.reload(util)
     importlib.reload(dc)
-    importlib.reload(faceEdgeMgr)
     importlib.reload(dbFaces)
-    importlib.reload(dbEdges)
+    importlib.reload(dbEdge)
     importlib.reload(d)
 
 # Generate an edgeId or faceId from object
@@ -242,9 +239,6 @@ class DogboneCommand(object):
         self.errorCount = 0
         self.faceSelections.clear()
         
-        self.selectedOccurrences = {} 
-        self.selectedFaces = {} 
-        self.selectedEdges = {} 
         self.registry = dbFaces.DbFaces()
         
         self.workspace = self.ui.activeWorkspace
@@ -254,7 +248,7 @@ class DogboneCommand(object):
                 
         argsCmd: adsk.core.Command = args
         
-        self.registry.preLoad()
+        # self.registry.preLoad()
         
         if self.design.designType != adsk.fusion.DesignTypes.ParametricDesignType :
             returnValue = self.ui.messageBox('DogBone only works in Parametric Mode \n Do you want to change modes?',
@@ -371,8 +365,8 @@ class DogboneCommand(object):
         occurrenceTable.isFullWidth = True
 
         rowCount = 0
-        if not self.registry.registeredFaceObjectsAsList:
-            for faceObject in self.registry.registeredFaceObjectsAsList:
+        if not r.Register.registeredFaceObjectsAsList:
+            for faceObject in r.Register.registeredFaceObjectsAsList:
                 occurrenceTable.addCommandInput(inputs.addImageCommandInput(f"row{rowCount}", 
                                                                             faceObject.occurrenceHash, 
                                                                             'resources/tableBody/16x16-normal.png'),
@@ -430,8 +424,8 @@ class DogboneCommand(object):
         self.ui.activeSelections.clear()
         
         
-        faces = map(lambda x: x.face, feMgr.selectedFaceObjectsAsList)
-        edges = map(lambda x: x.edge, feMgr.selectedEdgeObjectsAsList)
+        faces = r.Register.selectedFaceObjectsAsList
+        edges = r.Register.selectedEdgeObjectsAsList
 
         commandInputs.itemById('select').hasFocus = True        
         for face in faces:
@@ -487,7 +481,7 @@ class DogboneCommand(object):
                 #         Faces have been removed
                 #==============================================================================
                 self.logger.debug('face being removed {}'.format(face.entityToken))
-                self.registry.deleteFace(face)
+                dbFaces.deleteFace(face)
                             
             for face in addedFaces:
             #==============================================================================
@@ -495,7 +489,7 @@ class DogboneCommand(object):
             #==============================================================================
                  
                 self.logger.debug('face being added {}'.format(face.entityToken))
-                self.registry.addFace(face, self.dbParams)
+                dbFaces.addFace(face)
                             
                 if not changedInput.commandInputs.itemById('edgeSelect').isVisible:
                     changedInput.commandInputs.itemById('edgeSelect').isVisible = True
@@ -521,13 +515,13 @@ class DogboneCommand(object):
             #==============================================================================
             #             Edges have been removed
             #==============================================================================
-            self.registry.deleteEdge(edge)
+            dbEdge.deleteEdge(edge)
 
         for edge in addedEdges:
             #==============================================================================
             #         Edges have been added
             #==============================================================================
-            self.registry.addEdge(edge)
+            dbEdge.addEdge(edge)
             edge.dbParams = self.dbParams
             
         self.setSelections(self.registry, changedInput.commandInputs, changedInput.commandInputs.itemById('edgeSelect'))
@@ -698,7 +692,16 @@ class DogboneCommand(object):
         activeIn = eventArgs.firingEvent.activeInput
         if activeIn.id != 'select' and activeIn.id != 'edgeSelect':
             return # jump out if not dealing with either of the two selection boxes
-        eventArgs.isSelectable = self.registry.isSelectable(eventArgs.selection.entity)
+
+        if activeIn.id == 'select':
+            #==============================================================================
+            # processing activities when faces are being selected
+            #        selection filter is limited to planar faces
+            #        makes sure only valid occurrences and components are selectable
+            #==============================================================================
+
+            eventArgs.isSelectable = r.Register.isFaceSelectable(hash(eventArgs.selection.entity.entityToken))
+
         return
 
     def removeHandlers(self):

@@ -3,70 +3,78 @@ from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 from typing import List, ClassVar, Type
 import adsk
+class Register_meta
 
 class Register:
 
     registerList: List = []
 
-    # def __init__(self, object: Type):
-    #     print(object)
-    #     if not isinstance(object, FaceRegister) and not isinstance(object, EdgeRegister):
-    #         raise TypeError
-        # Register.registerList.append(object)
-
-    # @property
-    # @classmethod
-    # @abstractmethod
-    # def register(cls)->List:
-    #     return cls.registerList
-
+    @classmethod
     @lru_cache(maxsize=128)
-    def completeEntityList(self, entityHash):  #needs hashable parameters in the arguments for lru_cache to work
-        self.logger.debug('Entity Hash  = {}'.format(entityHash))
-        return  entityHash in self.dbEdges or entityHash in self.dbFaces
+    def getObject(cls, object:Type)->Type:  #needs hashable parameters in the arguments for lru_cache to work
+        # cls.logger.debug('Entity Hash  = {}'.format(object))
+        return  cls.registerList[object]
 
-    def isSelectable(self, entity):
-        
-        activeoccurrenceHash = entity.assemblyContext.component.name if entity.assemblyContext else entity.body.name
-        if activeoccurrenceHash not in self.dbOccurrences:
+    @classmethod
+    @lru_cache(maxsize=128)
+    def isSelected(cls, object:Type)->Type:  #needs hashable parameters in the arguments for lru_cache to work
+        # cls.logger.debug('Entity Hash  = {}'.format(object))
+        return  cls.registerList[object].isSelected
+   
+    @classmethod
+    @lru_cache(maxsize=128)
+    def isSelectable(cls, object:Type)->Type:  #needs hashable parameters in the arguments for lru_cache to work
+        # cls.logger.debug('Entity Hash  = {}'.format(object))
+        if not len(cls.registerList):
+            print('registerList = empty')
             return True
-
-        return self.completeEntityList(hash(entity.entityToken))
+        return  object in cls.registerList[object]
+  
+    @classmethod
+    @lru_cache(maxsize=128)
+    def isFaceSelectable(cls, object:Type)->Type:  #needs hashable parameters in the arguments for lru_cache to work
+        # cls.logger.debug('Entity Hash  = {}'.format(object))
+        if not len(cls.registerList):
+            print('registerList = empty')
+            return True
+        return  object in [face for face in cls.registerList if isinstance(face, FaceObject)]
         
-    @property        
-    def registeredEdgeObjectsAsList(self):
-        return self.dbEdges
+    def remove(cls, object)->None:
+        del cls.registerList[object]
 
+    @classmethod
     @property        
-    def registeredFaceObjectsAsList(self):
-        return self.dbFaces
+    def registeredEdgeObjectsAsList(cls)->List[Type]:
+        return [edge for edge in cls.registerList if isinstance(edge, EdgeObject)]
+
+    @classmethod
+    @property        
+    def registeredFaceObjectsAsList(cls)->List[Type]:
+        return [face for face in cls.registerList if isinstance(face, FaceObject)]
         
+    @classmethod
     @property
-    def registeredEntitiesAsList(self):
-        self.logger.debug('registeredEntitiesAsList')
-        return self.dbFaces + self.dbEdges
+    def registeredEntitiesAsList(cls)->List[adsk.fusion.BRepFace]:
+        # cls.logger.debug('registeredEntitiesAsList')
+        return [x.entity for x in cls.registerList]
 
+    @classmethod
     @property
-    def selectedEdgeObjectsAsList(self):
-        self.logger.debug('selectedEdgesAsList')
-        return [edgeObject for edgeObject in self.dbEdges if edgeObject.selected]    
+    def selectedEdgeObjectsAsList(cls):
+        cls.logger.debug('selectedEdgesAsList')
+        return [edge for edge in cls.registerList if isinstance(edge, EdgeObject) and edge.selected]
             
+    @classmethod
     @property        
-    def selectedFaceObjectsAsList(self):
-        self.logger.debug('selectedFacesAsList')
-        return [ faceObject for faceObject in self.dbFaces if faceObject.selected]
+    def selectedFaceObjectsAsList(cls):
+        cls.logger.debug('selectedFacesAsList')
+        return [face for face in cls.registerList if isinstance(face, FaceObject) and face.selected]
                      
-    @property        
-    def selectedEdgesAsGroupList(self):  # Grouped by occurrence/component
-        self.logger.debug('registeredEdgeObjectsAsGroupList')
-        groupedEdges  = {}
-        for group in self.dbGroups:
-            groupedEdges[group] = [edge.edge for edge in self.dbEdges if edge.group == group and edge.selected]
-        return groupedEdges
-
+    @classmethod
     @property
-    def registeredOccurrencesAsList(self):
-        return self.dbOccurrences
+    def registeredOccurrencesAsList(cls):
+#TODO
+        return set([x.occurence for x in cls.registerList])
 
 @dataclass(init=False)
 class FaceObject:

@@ -1,2 +1,2 @@
 from . import command, parametricDogbones, staticDogbones
-from . import dataclasses, dbEdges, dbFaces, faceEdgeMgr
+from . import dataclasses, dbFaces, dbEdge

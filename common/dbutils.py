@@ -8,29 +8,17 @@ import traceback
 from functools import wraps
 from pprint import pformat
 from collections import defaultdict, namedtuple
-
-def timer(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        startTime = time.time()
-        result = func(*args, **kwargs)
-        logger.debug('{}: time taken = {}'.format(func.__name__, time.time() - startTime))
-        return result
-    return wrapper
-
-# Generate occurrence hash
-calcOccHash = lambda x: x.assemblyContext.name if x.assemblyContext else x.body.name
-
-# Generate an edgeHash or faceHash from object
-calcHash = lambda x: str(x.tempId) + ':' + x.assemblyContext.name.split(':')[-1] if x.assemblyContext else str(x.tempId) + ':' + x.body.name
+from typing import Tuple, List
 
 getFaceNormal = lambda face: face.evaluator.getNormalAtPoint(face.pointOnFace)[1]
 edgeVector = lambda coEdge:  coEdge.edge.evaluator.getEndPoints()[2].vectorTo(coEdge.edge.evaluator.getEndPoints()[1]) if coEdge.isOpposedToEdge else coEdge.edge.evaluator.getEndPoints()[1].vectorTo(coEdge.edge.evaluator.getEndPoints()[2]) 
 
-#DbParams = namedtuple('DbParams', ['toolDia','dbType', 'fromTop', 'toolDiaOffset', 'offset', 'minimalPercent', 'longSide', 'minAngleLimit', 'maxAngleLimit' ])
 logger = logging.getLogger('dogbone.utils')
 
 def findInnerCorners(face):
+    '''
+    Finds candidate corners of a face suitable to create a dogbone on 
+    '''
     logger.debug('find Inner Corners')
     face1 = adsk.fusion.BRepFace.cast(face)
     if face1.objectType != adsk.fusion.BRepFace.classType():
@@ -62,26 +50,27 @@ def getDbEdge(edges, faceNormal, vertex, minAngle = 1/360*pi*2, maxAngle = 179/3
     returns: list of edgeVectors
     """
     
-#    refEdgeVector = refCoEdge.edge.endVertex.geometry.vectorTo(refCoEdge.edge.startVertex.geometry) if not refCoEdge.isOpposedToEdge else refCoEdge.edge.startVertex.geometry.vectorTo(refCoEdge.edge.endVertex.geometry)
     for edge in edges:
         edgeVector = correctedEdgeVector(edge, vertex)
         if edgeVector.angleTo(faceNormal) == 0:
             continue
         cornerAngle = getAngleBetweenFaces(edge)
-#        logger.debug('corner angle = {}'.format(cornerAngle))
         return edge if cornerAngle < maxAngle and cornerAngle > minAngle else False
     return False
 
 
-def getAngleBetweenFaces(edge):
+def getAngleBetweenFaces(edge: adsk.fusion.BRepEdge)-> float:
+    '''
+    With edge, return angle between the two faces that cojoin the edge
+    '''
     # Verify that the two faces are planar.
     face1 = edge.faces.item(0)
     face2 = edge.faces.item(1)
-    if face1 and face2:
-        if face1.geometry.objectType != adsk.core.Plane.classType() or face2.geometry.objectType != adsk.core.Plane.classType():
-            return 0
-    else:
-        return 0
+    
+    if not face1 or not face2:
+        return False
+    if face1.geometry.objectType != adsk.core.Plane.classType() or face2.geometry.objectType != adsk.core.Plane.classType():
+        return False
 
     # Get the normal of each face.
     ret = face1.evaluator.getNormalAtPoint(face1.pointOnFace)
@@ -122,7 +111,7 @@ def createDogboneTool(edge, dbParams, topPlane = None):
     
     """         
 
-def findExtent(face, edge):
+def findExtent(face: adsk.fusion.BRepFace, edge: adsk.fusion.BRepEdge):
     
 #    faceNormal = adsk.core.Vector3D.cast(face.evaluator.getNormalAtPoint(face.pointOnFace)[1])
     
@@ -133,7 +122,7 @@ def findExtent(face, edge):
     return endVertex
 
     
-def correctedEdgeVector(edge, refVertex):
+def correctedEdgeVector(edge:adsk.fusion.BRepEdge, refVertex: adsk.fusion.BRepVertex):
     if edge.startVertex.geometry.isEqualTo(refVertex.geometry):
         return edge.startVertex.geometry.vectorTo(edge.endVertex.geometry)
     else:
@@ -148,7 +137,7 @@ def correctedSketchEdgeVector(edge, refPoint):
     return False
     
 
-def isEdgeAssociatedWithFace(face, edge):
+def isEdgeAssociatedWithFace(face:adsk.fusion.BRepFace, edge:adsk.fusion.BRepEdge):
     
     # have to check both ends - not sure which way around the start and end vertices are
     if edge.startVertex in face.vertices:
@@ -157,7 +146,10 @@ def isEdgeAssociatedWithFace(face, edge):
         return True
     return False
     
-def getCornerEdgesAtFace(face, edge):
+def getCornerEdgesAtFace(face:adsk.fusion.BRepFace, edge:adsk.fusion.BRepEdge)->Tuple[adsk.fusion.BRepEdge, adsk.fusion.BRepEdge]:
+    '''
+    With orthogonal corner edge to face, returns the two edges on the Face that meet at the corner
+    '''
     #not sure which end is which - so test edge ends for inclusion in face
     if edge.startVertex in face.vertices:
         startVertex = edge.startVertex
@@ -177,7 +169,11 @@ def getCornerEdgesAtFace(face, edge):
         
     return (returnVal[0], returnVal[1])
     
-def getVertexAtFace(face, edge):
+def getVertexAtFace(face:adsk.fusion.BRepFace, edge:adsk.fusion.BRepEdge):
+    '''
+    With orthogonal corner edge to face, returns the corner vertex on the Face
+    
+    '''
     if edge.startVertex in face.vertices:
         return edge.startVertex
     else:
@@ -188,7 +184,12 @@ def messageBox(*args):
     adsk.core.Application.get().userInterface.messageBox(*args)
 
 
-def getTopFacePlane(faceEntity):
+def getTopFacePlane(faceEntity: adsk.fusion.BRepFace)->Tuple[adsk.core.Plane, int]:
+    '''
+    Creates a plane at the highest point of a body - relative to the normal of a face
+    This allows dogbones to be extruded from any point on the body, without being associated with an adjacent face 
+    returns created plane and hash of topFace that it is created from
+    '''
     normal = getFaceNormal(faceEntity)
     refPlane = adsk.core.Plane.create(faceEntity.vertices.item(0).geometry, normal)
     refLine = adsk.core.InfiniteLine3D.create(faceEntity.vertices.item(0).geometry, normal)
@@ -205,15 +206,30 @@ def getTopFacePlane(faceEntity):
         faceList.append([face, distance])
     sortedFaceList = sorted(faceList, key = lambda x: x[1])
     top = sortedFaceList[-1][0]
-    return adsk.core.Plane.create(top.pointOnFace, getFaceNormal(top))
+    return (adsk.core.Plane.create(top.pointOnFace, getFaceNormal(top)),hash(top.entityToken))
+
+def getAllFaces(faceEntity: adsk.fusion.BRepFace)->List[adsk.fusion.BRepFace]:
+    '''
+    gets All faces that are parallel and facing same way
+    '''
+    normal = getFaceNormal(faceEntity)
+    faceList = []
+    body = adsk.fusion.BRepBody.cast(faceEntity.body)
+    for face in body.faces:
+        if not normal.isParallelTo(getFaceNormal(face)): # if normals are the same then the faces are are facing same way - normal is positive facing out of the body!
+            continue
+        faceList.append(face)
+    return faceList
 
 #    refPoint = top[0].nativeObject.pointOnFace if top[0].assemblyContext else top[0].pointOnFace
     
 #    return topPlane
  
 
-def getTranslateVectorBetweenFaces(fromFace, toFace):
-#   returns absolute distance
+def getTranslateVectorBetweenFaces(fromFace: adsk.fusion.BRepFace, toFace: adsk.fusion.BRepFace)->adsk.core.Vector3D:
+    """
+    returns Vector needed to translate one face to another
+    """
     logger = logging.getLogger(__name__)
 
     normal = getFaceNormal(fromFace)
@@ -228,31 +244,3 @@ def getTranslateVectorBetweenFaces(fromFace, toFace):
     toFacePoint = toFacePlane.intersectWithLine(fromFaceLine)
     translateVector = fromFacePoint.vectorTo(toFacePoint)
     return translateVector
-        
-    
-class HandlerHelper(object):
-    # Overloads notify method of handler Class
-    def __init__(self):
-        # Note: we need to maintain a reference to each handler, otherwise the handlers will be GC'd and SWIG will be
-        # unable to call our callbacks. Learned this the hard way!
-        self.handlers = []  # needed to prevent GC of SWIG objects
-
-    def make_handler(self, handler_cls, notify_method, catch_exceptions=True):
-        class _Handler(handler_cls):
-            def notify(self, args):
-                self.logger = logging.getLogger('dogbone.utils.error')
-                if catch_exceptions:
-                    try:
-                        notify_method(args)
-                    except:
-                        messageBox('Failed:\n{}'.format(traceback.format_exc()))
-                        self.logger.exception('error termination')
-                        for handler in self.logger.handlers:
-                            handler.flush()
-                            handler.close()
-                else:
-                    notify_method(args)
-        h = _Handler()
-        self.handlers.append(h)
-        return h
-
