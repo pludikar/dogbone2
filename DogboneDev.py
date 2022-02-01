@@ -23,7 +23,7 @@ appPath = os.path.dirname(os.path.abspath(__file__))
 if appPath+"\\py_packages" not in sys.path:
     sys.path.insert(0, appPath+"\\py_packages")
 
-from .dbClasses import command
+from .dbClasses.command import DogboneCommand
 from .common import dbutils as util
 from .common import decorators as d
 
@@ -38,16 +38,18 @@ for handler in logger.handlers:
 formatter = logging.Formatter('%(asctime)s; %(name)s; %(levelname)s; %(lineno)d; %(funcName)s ; %(message)s')
 logHandler = logging.FileHandler(os.path.join(appPath, 'dogbone.log'), mode='w')
 logHandler.setFormatter(formatter)
-logHandler.level=logging.DEBUG
+logHandler.setLevel(logging.DEBUG)
 logHandler.flush()
 logger.addHandler(logHandler)
+logger.setLevel(logging.DEBUG)
 
 
-dog = command.DogboneCommand()
+dog = DogboneCommand()
 
 
 def run(context):
     try:
+        logger.info('run - adding Command Button')
         dog.addButtons()
     except:
         util.messageBox(traceback.format_exc())
@@ -56,6 +58,7 @@ def run(context):
 @d.clearDebuggerDict
 def stop(context):
     try:
+        logger.info('stop - removing Command Button')
         dog.removeButtons()
         adsk.terminate()
     except:

@@ -9,7 +9,7 @@ from typing import Optional
 from pydantic import BaseModel
 from pydantic.dataclasses import dataclass
 
-class DbParams(BaseModel, allow_mutation = False):
+class DbParams(BaseModel, allow_mutation = True):
      '''Dataclass - Holds add-in instance setup values'''
      toolDia: float = 0.25
      dbType: str = "Normal Dogbone"

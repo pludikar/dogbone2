@@ -1,2 +1,5 @@
+import imp
 from . import command, parametricDogbones, staticDogbones
-from . import dataclasses, dbFaces, dbEdge
+from .dbController import DbController
+from .dbEntity import DbEntity
+from . import dbFace, dbEdge

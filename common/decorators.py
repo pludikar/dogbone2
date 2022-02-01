@@ -7,6 +7,11 @@ from dataclasses import dataclass, field
 
 from functools import wraps, lru_cache
 
+app = adsk.core.Application.get()  #might be better to put the next few lines into global!!
+ui = app.userInterface
+product = app.activeProduct
+design: adsk.fusion.Design = product
+
 logger = logging.getLogger('dogbone.decorators')
 @dataclass
 class HandlerCollection():
@@ -42,12 +47,14 @@ def eventHandler(handler_cls=adsk.core.Base):
                         try:
                             logger.debug(f'{notify_method.__name__} handler notified: {eventArgs.firingEvent.name}')
                             notify_method(notify_method_self, eventArgs)  #notify_method_self and eventArgs come from the parent scope
-                        except:
+                        except Exception as e:
+                            print(e)
                             logger.exception(f'{eventArgs.firingEvent.name} error termination')
                 h = _Handler() #instantiates handler with the arguments provided by the decorator
                 event.add(h)  #this is where the handler is added to the event
                 HandlerCollection.handlers.append(HandlerCollection(h, event)) #adds to class handlers list, needs to be persistent otherwise GC will remove the handler - deleting handlers (if necessary) will ensure that garbage collection will happen.
-            except:
+            except Exception as e:
+                print(e)
                 logger.exception(f'{handler_cls.name} handler creation error')
             return h
         return handlerWrapper
@@ -121,6 +128,31 @@ def entityFromToken(method):
             return entity
         except:
             return None
+    return wrapper
+
+def tokeniseEntity(method):
+
+    @wraps(method)
+    def wrapper(*args, entity:adsk.core.Base = adsk.core.Base, **kwargs):
+        '''
+        Converts any entity passed in the parameters to its entityToken
+        '''
+        newArgs = []
+        newkwargs = {}
+        for a in args:
+            try:
+                newArgs.append(a.entityToken)
+            except AttributeError:
+                newArgs.append(a)
+                continue
+        for k, v in kwargs:
+            try:
+                newkwargs[k] = v.entityToken
+            except AttributeError:
+                newArgs[k] = v
+                continue  
+        result = method(*newArgs, **newkwargs)
+        return result
     return wrapper
 
 

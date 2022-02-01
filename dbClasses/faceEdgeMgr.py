@@ -24,7 +24,7 @@ import hashlib
 from ..common import dbutils as dbUtils
 from ..dbClasses.dataclasses import DbParams
 # from ..common.dbutils import calcOccHash, calcHash 
-from ..dbClasses.dbFaces import DbFaces, DbFace
+from .dbFace import DbFaces, DbFace
 from math import sqrt, pi
 from ..dbClasses import Register
 

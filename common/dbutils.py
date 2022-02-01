@@ -9,18 +9,34 @@ from functools import wraps
 from pprint import pformat
 from collections import defaultdict, namedtuple
 from typing import Tuple, List
+from functools import reduce, lru_cache
+from .decorators import  tokeniseEntity
+
+app = adsk.core.Application.get()  #might be better to put the next few lines into global!!
+ui = app.userInterface
+product = app.activeProduct
+design: adsk.fusion.Design = product
 
 getFaceNormal = lambda face: face.evaluator.getNormalAtPoint(face.pointOnFace)[1]
 edgeVector = lambda coEdge:  coEdge.edge.evaluator.getEndPoints()[2].vectorTo(coEdge.edge.evaluator.getEndPoints()[1]) if coEdge.isOpposedToEdge else coEdge.edge.evaluator.getEndPoints()[1].vectorTo(coEdge.edge.evaluator.getEndPoints()[2]) 
 
 logger = logging.getLogger('dogbone.utils')
 
+@tokeniseEntity
+@lru_cache(maxsize=120)
+def get_component_hash(entityToken):
+    '''
+    returns the hash of an entity's Occurrence or its parent's body
+    '''
+    entity = design.findEntityByToken(entityToken)[0]  #TODO should probably check if there's more than 1 entity
+    return hash(entity.assemblyContext.component.entityToken) if entity.assemblyContext else hash(entity.body.entityToken) 
+
 def findInnerCorners(face):
     '''
     Finds candidate corners of a face suitable to create a dogbone on 
     '''
     logger.debug('find Inner Corners')
-    face1 = adsk.fusion.BRepFace.cast(face)
+    face1: adsk.fusion.BRepFace = face
     if face1.objectType != adsk.fusion.BRepFace.classType():
         return False
     if face1.geometry.surfaceType != adsk.core.SurfaceTypes.PlaneSurfaceType:
@@ -104,16 +120,7 @@ def getAngleBetweenFaces(edge: adsk.fusion.BRepEdge)-> float:
 
     return angle
 
-    
-def createDogboneTool(edge, dbParams, topPlane = None):
-    """
-        returns temporary BRepBody - 
-    
-    """         
-
 def findExtent(face: adsk.fusion.BRepFace, edge: adsk.fusion.BRepEdge):
-    
-#    faceNormal = adsk.core.Vector3D.cast(face.evaluator.getNormalAtPoint(face.pointOnFace)[1])
     
     if edge.startVertex in face.vertices:
         endVertex = edge.endVertex
@@ -195,7 +202,12 @@ def getTopFacePlane(faceEntity: adsk.fusion.BRepFace)->Tuple[adsk.core.Plane, in
     refLine = adsk.core.InfiniteLine3D.create(faceEntity.vertices.item(0).geometry, normal)
     refPoint = refPlane.intersectWithLine(refLine)
     faceList = []
-    body = adsk.fusion.BRepBody.cast(faceEntity.body)
+    body: adsk.fusion.BRepBody = faceEntity.body
+    def calcDistance(face):
+        facePlane = adsk.core.Plane.create(face.vertices.item(0).geometry, normal)
+        intersectionPoint = facePlane.intersectWithLine(refLine)
+        directionVector = refPoint.vectorTo(intersectionPoint)
+        return directionVector.dotProduct(normal)
     for face in body.faces:
         if not normal.isParallelTo(getFaceNormal(face)):
             continue
@@ -208,22 +220,16 @@ def getTopFacePlane(faceEntity: adsk.fusion.BRepFace)->Tuple[adsk.core.Plane, in
     top = sortedFaceList[-1][0]
     return (adsk.core.Plane.create(top.pointOnFace, getFaceNormal(top)),hash(top.entityToken))
 
-def getAllFaces(faceEntity: adsk.fusion.BRepFace)->List[adsk.fusion.BRepFace]:
+def getAllParallelFaces(faceEntity: adsk.fusion.BRepFace)->List[adsk.fusion.BRepFace]:
     '''
     gets All faces that are parallel and facing same way
     '''
     normal = getFaceNormal(faceEntity)
-    faceList = []
-    body = adsk.fusion.BRepBody.cast(faceEntity.body)
-    for face in body.faces:
-        if not normal.isParallelTo(getFaceNormal(face)): # if normals are the same then the faces are are facing same way - normal is positive facing out of the body!
-            continue
-        faceList.append(face)
+    body: adsk.fusion.BRepBody = faceEntity.body
+
+    faceList = list(filter(lambda face: normal.isEqualTo(getFaceNormal(face)), body.faces))
     return faceList
 
-#    refPoint = top[0].nativeObject.pointOnFace if top[0].assemblyContext else top[0].pointOnFace
-    
-#    return topPlane
  
 
 def getTranslateVectorBetweenFaces(fromFace: adsk.fusion.BRepFace, toFace: adsk.fusion.BRepFace)->adsk.core.Vector3D:
