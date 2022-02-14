@@ -26,38 +26,44 @@ class DbFace(DbEntity):
         each face or edge selection that is changed will reflect in the parent management object selectedOccurrences, selectedFaces and selectedEdges
     """
 
-    def __init__(self, face):  #preload is used when faces are created from attributes.  preload will be a namedtuple of faceHash and occHash
+    def __init__(self, faceEntity):  #preload is used when faces are created from attributes.  preload will be a namedtuple of faceHash and occHash
 
         logger.info(f'---------------------------------creating face---------------------------')
         
-        super().__init__(face)
+        super().__init__(faceEntity)
 
         self.faceNormal = u.getFaceNormal(self._entity)
         
-        self.topFacePlane, self.topFacePlaneHash = u.getTopFacePlane(face)
+        self.topFacePlane, self.topFacePlaneHash = u.getTopFacePlane(faceEntity)
+
+        self._type = 'face'
+
+        self._hasEdges = False
         
-        logger.debug(f'{self._hash} - face initiated')           
+        logger.debug(f'face initiated - {self}')           
 
         #==============================================================================
         #             this is where inside corner edges, dropping down from the face are processed
         #==============================================================================
 
-    def __post__init__(self, face):
+    def __post__init__(self, faceEntity):
                 
-        self.brepEdges = u.findInnerCorners(face) #get all candidate edges associated with this face
+        self.brepEdges = u.findInnerCorners(faceEntity) #get all candidate edges associated with this face
         if not self.brepEdges:
-            logger.debug('no edges found on selected face '.format(self.__hash__))
-            self._selected = False
+            logger.debug(f'no edges found on {self}')
+            self.deselected()
+            self._hasEdges = False
             return
+        self._hasEdges = True
 
-        logger.debug('{} - edges found on face creation'.format(len(self.brepEdges)))
+        logger.debug(f'{len(self.brepEdges)} - edges found on face creation')
         for edge in self.brepEdges:
             if edge.isDegenerate:
                 continue
             try:
                 edgeObject = DbEdge(edge, self) #create a new edgeObject
                 edgeObject.select()
-                logger.debug(f' {edgeObject._hash} - edge object added')
+                logger.debug(f'edge added {edgeObject}')
     
             except:
                 u.messageBox(f'Failed at edge:\n{traceback.format_exc()}')
@@ -65,17 +71,21 @@ class DbFace(DbEntity):
         logger.debug(f'registered component count = {len(self.register.registeredObjectsAsList(DbFace) )}')
 
     def __iter__(self):
-        for edge in self.register.registeredObjectsAsList(self, DbFace):
+        for edge in self.register.registeredEdgesByParentAsList(self):
             yield edge
 
+    @property
+    def hasEdges(self):
+        return self._hasEdges
+
     def select(self):
-        associatedEdges = self.register.registeredObjectsByParentAsList(DbEdge, self.entity)
+        associatedEdges = self.register.registeredEdgesByParentAsList(self)
         for edgeObject in associatedEdges:
             edgeObject.select()
         self._selected = True
 
     def deselect(self):
-        associatedEdges = self.register.registeredObjectsByParentAsList(DbEdge, self.entity)
+        associatedEdges = self.register.registeredEdgesByParentAsList(self)
         for edgeObject in associatedEdges:
             edgeObject.deselect()
         self._select = False

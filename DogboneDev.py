@@ -16,17 +16,18 @@ import logging
 import os, sys
 import adsk.core, adsk.fusion
 import traceback
+from .common import common as g
 
-appPath = os.path.dirname(os.path.abspath(__file__))
-# if appPath not in sys.path:
-#     sys.path.insert(0, appPath)
-if appPath+"\\py_packages" not in sys.path:
-    sys.path.insert(0, appPath+"\\py_packages")
+if g._appPath+"\\py_packages" not in sys.path:
+    sys.path.insert(0, g._appPath+"\\py_packages")
 
 from .dbClasses.command import DogboneCommand
-from .common import dbutils as util
-from .common import decorators as d
 
+from .common import dbutils as util
+from .common import common as g 
+from .common.decorators import clearDebuggerDict
+
+g._customDogboneFeatureDef
 
 logger = logging.getLogger('dogbone')
 
@@ -36,7 +37,7 @@ for handler in logger.handlers:
     logger.removeHandler(handler)
 
 formatter = logging.Formatter('%(asctime)s; %(name)s; %(levelname)s; %(lineno)d; %(funcName)s ; %(message)s')
-logHandler = logging.FileHandler(os.path.join(appPath, 'dogbone.log'), mode='w')
+logHandler = logging.FileHandler(os.path.join(g._appPath, 'dogbone.log'), mode='w')
 logHandler.setFormatter(formatter)
 logHandler.setLevel(logging.DEBUG)
 logHandler.flush()
@@ -55,7 +56,7 @@ def run(context):
         util.messageBox(traceback.format_exc())
 
 
-@d.clearDebuggerDict
+@clearDebuggerDict
 def stop(context):
     try:
         logger.info('stop - removing Command Button')

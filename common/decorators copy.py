@@ -1,48 +1,40 @@
-import logging, sys, gc, os
+import logging, sys, gc
 import time
-import traceback
 import adsk.core, adsk.fusion
 from typing import ClassVar
-from dataclasses import dataclass, field, InitVar
+from dataclasses import dataclass
 import pprint
 from functools import wraps
-from . import common as g
-
 
 pp = pprint.PrettyPrinter()
 
-logger = logging.getLogger('dogbone.decorators')
+logger = logging.getLogger('CustomPocket.decorators')
 logger.setLevel(logging.DEBUG)
 
-@dataclass()
-class HandlerCollection():
+@dataclass
+class HandlerContext():
+    handler: adsk.core.Base
+    event: adsk.core.Event
+
+
+@dataclass
+class HandlerCollection(HandlerContext):
     '''
     class to keep event handlers persistent
     It's not apparent if it's possible to figure which event each handler is attached to
     If you want to remove a handler selectively, you need both event and handler together.
     '''
-    handlers: ClassVar = field(init=False, default={})
-    handler: None 
-    event: None
+    handlers: ClassVar = {}
     group: str = 'default'
     
     def __post_init__(self):
-        HandlerCollection.handlers.setdefault(self.group, []).append((self.event, self.handler ))
+        try:
+            HandlerCollection.handlers[self.group].append(HandlerContext(self.event, self.handler))
+        except KeyError:
+            HandlerCollection.handlers[self.group] = [HandlerContext(self.event, self.handler)]
 
     @classmethod
-    def str__(cls):
-        result = '{'
-        for group, groupList in cls.handlers.items():
-            result += f'{group}: ['
-            for event, handler in groupList:
-                result += f'({event.name}, {handler} ),\n'
-            result = result[:-2]
-            result += ' ]'
-        result += ' }'
-        return result
-
-    @classmethod
-    def remove(cls, group=None):
+    def remove(cls, group):
         '''
         Simple remove of group key and its values - python GC will clean up any orphaned handlers
         If parameter is None then do a complete HandlerCollection reset
@@ -56,17 +48,6 @@ class HandlerCollection():
             return
 
     # TODO - add selective eventHandler removal - might be more trouble than it's worth
-
-# Decorator to add debugger dict Clearing
-def clearDebuggerDict(method):
-    def decoratorWrapper(*args, **kwargs):
-        rtn = method(*args, **kwargs)
-        sys.modules['_pydevd_bundle.pydevd_xml'].__dict__['_TYPE_RESOLVE_HANDLER']._type_to_resolver_cache = {}
-        sys.modules['_pydevd_bundle.pydevd_xml'].__dict__['_TYPE_RESOLVE_HANDLER']._type_to_str_provider_cache = {}
-        logger.debug(f'gc.collect count = {gc.collect()}')
-        return rtn
-    return decoratorWrapper
-
 
 # Decorator to add eventHandler
 def eventHandler(handler_cls=adsk.core.Base):
@@ -88,29 +69,24 @@ def eventHandler(handler_cls=adsk.core.Base):
             try:
 
                 class _Handler(handler_cls):
-                    name: str = notify_method.__name__ + '_handler'
 
                     def notify( self, eventArgs):
                         try:
                             logger.debug(f'{notify_method.__name__} handler notified: {eventArgs.firingEvent.name}')
                             notify_method(*handler_args, eventArgs)  #notify_method_self and eventArgs come from the parent scope
                         except Exception as e:
-                            print(traceback.format_exc())
-                            logger.exception(f'{self.name} error termination')
-
-                    def __str__(self):
-                        return self.name
+                            print(e)
+                            logger.exception(f'{eventArgs.firingEvent.name} error termination')
                 h = _Handler() #instantiates handler with the arguments provided by the decorator
                 event.add(h)  #this is where the handler is added to the event
- 
                 # HandlerCollection.handlers.append(HandlerCollection(h, event))
-                _ = HandlerCollection(group=group, handler=h, event=event)
-                # print(_)
+                HandlerCollection(group=group, handler=h, event=event)
+                logger.debug(f'{pp.pformat(HandlerCollection.handlers)}')
                 # adds to class handlers list, needs to be persistent otherwise GC will remove the handler
                 # - deleting handlers (if necessary) will ensure that garbage collection will happen.
             except Exception as e:
-                print(f'{notify_method.__name__}: {traceback.format_exc()}')
-                logger.exception(f'handler creation error {notify_method.__name__}')
+                print(e)
+                logger.exception(f'handler creation error')
             return h
         return handlerWrapper
     return decoratorWrapper
@@ -148,11 +124,11 @@ def makeTempFaceVisible(method):
     def wrapper (*args, **kwargs):
 
         # Create a base feature
-        baseFeats = c._rootComp.features.baseFeatures
+        baseFeats = rootComp.features.baseFeatures
         baseFeat = baseFeats.add()
         
         baseFeat.startEdit()
-        bodies = c._rootComp.bRepBodies
+        bodies = rootComp.bRepBodies
 
         tempBody = method(*args, **kwargs)
         tempBody.name = "Debug_" + method.__name__
@@ -169,7 +145,7 @@ def entityFromToken(method):
     def wrapper(*args, **kwargs):
         try:
             entityToken = method(*args, **kwargs)
-            entity = cacheDict.setdefault(entityToken, c._design.findEntityByToken(entityToken)[0])
+            entity = cacheDict.setdefault(entityToken, design.findEntityByToken(entityToken)[0])
             return entity
         except:
             return None

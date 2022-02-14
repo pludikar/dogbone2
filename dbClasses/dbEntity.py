@@ -2,6 +2,7 @@ import logging
 from shelve import Shelf
 from ..common import dbutils as dbUtils
 from .register import Register
+from ..common import common as g
 
 logger = logging.getLogger('dogbone.dbEntity')
 
@@ -23,24 +24,36 @@ class DbEntity(metaclass=PostInitCaller):
     Parent class representing the common attributes and methods for both faces and edges
     '''
     register = Register()
+    _objectType: str
     
     def __init__(self, entity):
         self.logger = logging.getLogger('dogbone.mgr'+self.__class__.__name__)
 
-        logger.info('---------------------------------{}---------------------------'.format('creating face'))
-        
         self.register.add(self)
 
         self._entity = entity
+
+        self._nativeObject = entity.nativeObject
+
+        self._entityToken = entity.entityToken
 
         self._hash = hash(entity.entityToken)
 
         self._selected = False
 
-        self._component_hash = dbUtils.get_component_hash(entity)
+        self._component_token = dbUtils.get_component_token(entity) if entity.assemblyContext else g._rootComp.entityToken
+
+        self._temp_id = self._entity.tempId
+
+        self._type: str
+
 
     def __hash__(self):
         return self._hash
+
+    def __str__(self):
+        name = self._entity.assemblyContext.name if self._entity.assemblyContext else self._entity.body.name
+        return  f'{self._type}:{self._temp_id} - {name}' 
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -48,6 +61,12 @@ class DbEntity(metaclass=PostInitCaller):
 
         if type(other) is int:
             return self._hash == other
+
+        if type(other) is str:
+            return (self.type_ == other 
+                or self.entityToken == other
+                or self.entity.body.entityToken == other
+            )
         
         return NotImplemented
                 
@@ -58,14 +77,30 @@ class DbEntity(metaclass=PostInitCaller):
     @property
     def entity(self):
         return self._entity
+
+    @property
+    def nativeObject(self):
+        return self._nativeObject
         
     @property
     def component_hash(self):
-        return self._component_hash
+        return hash(self._component_token)
+
+    @property
+    def component_token(self):
+        return self._component_token
 
     @property
     def entity(self):
         return self._entity
+
+    @property
+    def type_(self):
+        return self._type
+
+    @property
+    def entityToken(self):
+        return self._entityToken
 
     @property
     def isselected(self):

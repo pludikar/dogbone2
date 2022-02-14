@@ -2,20 +2,22 @@ import  logging
 import adsk.core, adsk.fusion
 from .register import Register
 from .dataclasses import DbParams
+from ..common.decorators import eventHandler 
 from ..common import dbutils as util
 from math import sqrt, pi
 from .dbEdge import DbEdge
 from .dbFace import DbFace
+# from .command import _customDogboneFeatureDef
 
 app = adsk.core.Application.get()  #might be better to put the next few lines into global!!
 ui = app.userInterface
 product = app.activeProduct
 design: adsk.fusion.Design = product
 rootComp = product.rootComponent
-
 logger = logging.getLogger('dogbone.static')
 
-def createStaticDogbones():
+@eventHandler(handler_cls=adsk.fusion.CustomFeatureEventHandler)
+def createStaticDogbones(dummy, args:adsk.fusion.CustomFeatureEventArgs):
     dbParams = DbParams()
     register = Register()
     radius = (dbParams.toolDia + dbParams.toolDiaOffset) / 2
@@ -49,7 +51,10 @@ def createStaticDogbones():
             if not toolBodies:
                 toolBodies = dbToolBody
                 continue
-            tempBrepMgr.booleanOperation(toolBodies, dbToolBody, adsk.fusion.BooleanTypes.UnionBooleanType)  #combine all the dogbones into a single toolbody
+            tempBrepMgr.booleanOperation(
+                toolBodies,
+                dbToolBody,
+                adsk.fusion.BooleanTypes.UnionBooleanType)  #combine all the dogbones into a single toolbody
                 
         baseFeatures = rootComp.features.baseFeatures
         baseFeature = baseFeatures.add()
