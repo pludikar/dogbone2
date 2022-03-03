@@ -3,6 +3,7 @@ from functools import reduce, lru_cache
 from typing import List
 import json
 import adsk.core, adsk.fusion
+from pydantic.fields import T
 from ..common import dbutils as u
 from ..common.decorators import tokeniseEntity
 from ..common import common as g
@@ -20,17 +21,31 @@ class Register:
         Register.registerList.append(entity_object)
 
     def clear(self):
-        Register.registerList = []
+        for edgeObject in self.registeredEdgesAsList:
+            del edgeObject
+        for faceObject in self.registeredFacesAsList:
+            del faceObject
+
+    def resetCache(self):
+        self.getobject.lru_cache.clear()
+        self.isEntitySelectable.lru_cache.clear()
+        # self.isselected.lru_cache.clear()
+        # self.isOccurrenceRegistered.lru_cache.clear()
+        # self.isEntitySelectable.lru_cache.clear()
+        # self.isSelectable.lru_cache.clear()
+        # self.selectedEdgesByParentAsList.lru_cache.clear()
+
 
     @tokeniseEntity
     def remove(self, objectHash:int)->None:
         try:
+            # self.resetCache()
             Register.registerList.remove(objectHash)
         except ValueError:
             return False
 
-    # @lru_cache(maxsize=128)
     @tokeniseEntity
+    # @lru_cache(maxsize=128)
     def getobject(self, tokenOrObject:object)->object:  #needs hashable parameters in the arguments for lru_cache to work
         try:
             return  Register.registerList[Register.registerList.index(tokenOrObject)]
@@ -40,140 +55,107 @@ class Register:
     # @lru_cache(maxsize=128)
     def isSelected(self, dbobject:object)->object:  #needs hashable parameters in the arguments for lru_cache to work
         return  Register.registerList[dbobject].isSelected
-    
-    # @lru_cache(maxsize=128)
-    def isSelectable(self, dbobject:object)->object:  #needs hashable parameters in the arguments for lru_cache to work
-        if not len(Register.registerList):
-            return True
-        return  Register.registerList[dbobject]
-    
+
     @tokeniseEntity
     # @lru_cache(maxsize=128)
-    def isEntitySelectable(self, objectToken:object)->object:  #needs hashable parameters in the arguments for lru_cache to work
+    def isEntitySelectable(self, entity_token )->bool:  
+        #needs hashable parameters in the arguments for lru_cache to work
         '''
-        Checks if an entity is selectable - should return True is entity is already registered
+        Checks if an entity is selectable 
+        - return True if entity is already registered 
+        otherwise check if it's an unregistered body inside a component (inc. root) 
         '''
-        objectHash = hash(objectToken)
-        component_hash = hash(u.get_component_token(objectToken))
+        if entity_token in Register.registerList:
+            return True  #entity is definitely in the register - so we can select it
 
-        if not self.isOccurrenceRegistered(component_hash):
-            return True
-        result = objectHash in Register.registerList
-        return  result
+        entity = g._design.findEntityByToken(entity_token)[0]
+        # entity maybe associated with a body
+        # if it's a body in the same occurrence then it can't be selected 
+        if entity.assemblyContext:  #
+            return hash(entity.body.nativeObject.entityToken) not in Register.registerList
+
+        # now left with only needing to check if rootComponent body is in the register
+        return hash(entity.body.entityToken) not in Register.registerList
     
     @property
     def asDict(self)->dict:
         '''
-        Returns nested dict of each component, selected faces and associated edges
+        Returns nested dict of each body, selected faces and associated edges
         '''
-        return {componenthash:\
-            {face.entityToken: [edge.entityToken for edge in self.selectededEdgesByParentAsList(face)]\
-                for face in self.selectedFacesByComponentAsList(componenthash)}\
-            for componenthash in self.registeredOccurrenceHashesAsList }
+        return {bodyhash:\
+            {face.entityToken: [edge.entityToken for edge in self.selectedEdgesByParentAsList(face)]\
+                for face in self.selectedFacesByBodyAsList(bodyhash)}\
+            for bodyhash in self.registeredOccurrenceHashesAsList }
+
+
+# Cached properties - need to be cleared if registerList changes --------------------------------------
+
+#TODO make caching strategy mores selective!!
+#TODO weed out methods that aren't being used
+
+    @property
+    def topFacesByBodyasDict(self)->dict:
+        '''
+        Returns nested dict of each body, selected faces and associated edges
+        '''
+        return {body_token:list({face.topFaceEntity.entityToken 
+                    for face in self.registeredFacesByBodyAsList(body_token)})
+                    for body_token in self.registeredBodyTokensAsList}
 
     @tokeniseEntity
-    def selectedEdgesAsTokenList(self)->List[object]:
+    def selectedgesByBodyAsTokenList(self, body_hash: int )->List[object]:
         '''
-        returns list of objects filtered by type (dbFace or dbEdge) and component_hash 
+        returns list of objects filtered by type (dbFace or dbEdge) and body_hash 
         '''
-        return [obj.entityToken for obj in Register.registerList if obj == 'edge' and obj.isselected ]
+        return [obj.entityToken for obj in Register.registerList if obj == 'edge' and obj.body_hash == body_hash and obj.isselected ]
     
     @tokeniseEntity
-    def selectedFacesAsTokenList(self)->List[object]:
+    def selectedFacesByBodyAsTokenList(self, body_hash: int )->List[object]:
         '''
-        returns list of objects filtered by type (dbFace or dbEdge) and component_hash 
+        returns list of objects filtered by type (dbFace or dbEdge) and body_hash 
         '''
-        return [obj.entityToken for obj in Register.registerList if obj == 'face' and obj.isselected ]
+        return [obj.entityToken for obj in Register.registerList if obj == 'face' and obj.body_hash == body_hash  and obj.isselected ]
 
-    @tokeniseEntity
-    def selectedEdgesByComponentAsTokenList(self, component_hash: int )->List[object]:
-        '''
-        returns list of objects filtered by type (dbFace or dbEdge) and component_hash 
-        '''
-        return [obj.entityToken for obj in Register.registerList if obj == 'edge' and obj.component_hash == component_hash and obj.isselected ]
-    
-    @tokeniseEntity
-    def selectedFacesByComponentAsTokenList(self, component_hash: int )->List[object]:
-        '''
-        returns list of objects filtered by type (dbFace or dbEdge) and component_hash 
-        '''
-        return [obj.entityToken for obj in Register.registerList if obj == 'face' and obj.component_hash == component_hash  and obj.isselected ]
-
-    @tokeniseEntity
-    def selectedEdgesAsList(self)->List[object]:
-        '''
-        returns list of objects filtered by type (dbFace or dbEdge) and component_hash 
-        '''
-        return [obj for obj in Register.registerList if obj == 'edge' and obj.isselected ]
-    
     @tokeniseEntity
     # @lru_cache(maxsize=128)
-    def selectededEdgesByParentAsList(self, parentToken: object )->List[object]:
+    def selectedgesByParentAsList(self, parentToken: object )->List[object]:
         '''
         returns list of objects filtered by type (dbFace or dbEdge) and parent
         is Only applicable to cls = DbEdge 
         '''
         #ideally should have been filtered by DbEdge, but that makes Register more coupled than I wanted
-        fullOjectList = [obj for obj in Register.registerList if obj == 'edge' and obj.parent == parentToken and obj.isselected]
-        return fullOjectList
+        ojectList = [obj for obj in Register.registerList \
+                        if (obj == 'edge'
+                            and obj.parent == parentToken
+                            and obj.isselected)]
+        return ojectList
+
+    @tokeniseEntity
+    def selectedgesByBodyAsList(self, body_token: int )->List[object]:
+        '''
+        returns list of objects filtered by type (dbFace or dbEdge) and body_hash 
+        '''
+        body_hash = hash(body_token) 
+        return [obj for obj in Register.registerList if obj == 'edge' and obj.body_hash == body_hash and obj.isselected ]
+
+    @tokeniseEntity
+    def selectedgesByFaceAsList(self, face_token: int )->List[object]:
+        '''
+        returns list of objects filtered by type (dbFace or dbEdge) and body_hash 
+        '''
+        face_hash = hash(face_token) 
+        return [obj for obj in Register.registerList 
+                    if obj == 'edge' and obj._hash == face_hash and obj.isselected ]
     
     @tokeniseEntity
-    def selectedFacesAsList(self)->List[object]:
+    def selectedFacesByBodyAsList(self, body_token: int )->List[object]:
         '''
-        returns list of objects filtered by type (dbFace or dbEdge) and component_hash 
+        returns list of objects filtered by type (dbFace or dbEdge) and body_hash 
         '''
-        return [obj for obj in Register.registerList if obj == 'face' and obj.isselected ]
+        body_hash = hash(body_token) 
+        return [obj for obj in Register.registerList if obj == 'face' and obj.body_hash == body_hash  and obj.isselected ]
 
-
-    @tokeniseEntity
-    def selectedEdgesByComponentAsList(self, component_hash: int )->List[object]:
-        '''
-        returns list of objects filtered by type (dbFace or dbEdge) and component_hash 
-        '''
-        return [obj for obj in Register.registerList if obj == 'edge' and obj.component_hash == component_hash and obj.isselected ]
-    
-    @tokeniseEntity
-    def selectedFacesByComponentAsList(self, component_hash: int )->List[object]:
-        '''
-        returns list of objects filtered by type (dbFace or dbEdge) and component_hash 
-        '''
-        return [obj for obj in Register.registerList if obj == 'face' and obj.component_hash == component_hash  and obj.isselected ]
-
-    def registeredFacesAsList(self)->List[object]:
-        '''
-        returns full list of objects filtered by type (dbFace or dbEdge) 
-        '''
-        return [obj for obj in Register.registerList if obj == 'face']
-    
-    @tokeniseEntity
-    def registeredEdgesAsList(self )->List[object]:
-        '''
-        returns list of objects filtered by type (dbFace or dbEdge) and component_hash 
-        '''
-        return [obj for obj in Register.registerList if obj == 'edge']
-
-    @tokeniseEntity
-    def registeredFacesAsList(self)->List[object]:
-        '''
-        returns list of objects filtered by type (dbFace or dbEdge) and component_hash 
-        '''
-        return [obj for obj in Register.registerList if obj == 'face']
-
-    @tokeniseEntity
-    def registeredEdgesByComponentAsList(self, component_hash: int )->List[object]:
-        '''
-        returns list of objects filtered by type (dbFace or dbEdge) and component_hash 
-        '''
-        return [obj for obj in Register.registerList if obj == 'edge' and obj.component_hash == component_hash ]
-
-    @tokeniseEntity
-    def registeredFacesByComponentAsList(self, component_token: int )->List[object]:
-        '''
-        returns list of objects filtered by type (dbFace or dbEdge) and component_token 
-        '''
-        return [obj for obj in Register.registerList if obj == 'face' and obj.component_token == component_token ]
-
-    @tokeniseEntity
+    # @tokeniseEntity
     # @lru_cache(maxsize=128)
     def registeredEdgesByParentAsList(self, parentToken: object )->List[object]:
         '''
@@ -182,7 +164,87 @@ class Register:
         #ideally should have been filtered by DbEdge, but that makes Register more coupled than I wanted
         fullOjectList = [obj for obj in Register.registerList if obj == 'edge' and obj.parent == parentToken]
         return fullOjectList
+
+    @tokeniseEntity
+    # @lru_cache(maxsize=128)
+    def isOccurrenceRegistered(self, body_token)->bool:
+        '''
+        Returns if an entity has been registered 
+        '''
+        return body_token in list(set(obj.occurrence_token for obj in self.registerList))
+
+    @tokeniseEntity
+    def registeredEdgesByBodyAsList(self, body_token: int )->List[object]:
+        '''
+        returns list of objects filtered by edge and body_token 
+        '''
+        return [obj for obj in Register.registerList if obj == 'edge' and obj.body_token == body_token ]
+
+    @tokeniseEntity
+    def registeredFacesByBodyAsList(self, body_token: int )->List[object]:
+        '''
+        returns list of objects filtered by face and body_token 
+        '''
+        return [obj for obj in Register.registerList if obj == 'face' and obj.body_token == body_token ]
+
+# looup properties below this line - many will be children of the cached properties above this
+# ---------------------------------------------------------------------
+    @property
+    def selectedgesAsTokenList(self)->List[object]:
+        '''
+        returns list of entityTokens filtered by type (dbFace or dbEdge) 
+        '''
+        return [obj.entityToken for obj in Register.registerList if obj == 'edge' and obj.isselected ]
     
+    @property
+    def selectedFacesAsTokenList(self)->List[object]:
+        '''
+        returns list of entityTokens filtered by type (dbFace or dbEdge) 
+        '''
+        return [obj.entityToken for obj in Register.registerList if obj == 'face' and obj.isselected ]
+
+    @property
+    def allSelectedAsTokenList(self)->List[object]:
+        '''
+        returns list of entityTokens filtered by type (dbFace or dbEdge) 
+        '''
+        return [obj.entityToken for obj in Register.registerList if obj.isselected ]
+
+    @property
+    def allSelectedAsEntityList(self)->List[object]:
+        '''
+        returns list of entityTokens filtered by type (dbFace or dbEdge) 
+        '''
+        return [obj.entity for obj in Register.registerList if obj.isselected ]
+
+    @property
+    def selectedgesAsList(self)->List[object]:
+        '''
+        returns list of selected objects filtered by edge 
+        '''
+        return [obj for obj in Register.registerList if obj == 'edge' and obj.isselected ]
+    
+    @property
+    def selectedFacesAsList(self)->List[object]:
+        '''
+        returns list of selected face objects 
+        '''
+        return [obj for obj in Register.registerList if obj == 'face' and obj.isselected ]
+
+    @property
+    def registeredFacesAsList(self)->List[object]:
+        '''
+        returns full list of registered face objects 
+        '''
+        return [obj for obj in Register.registerList if obj == 'face']
+    
+    @property
+    def registeredEdgesAsList(self )->List[object]:
+        '''
+        returns full list of registered edge objects 
+        '''
+        return [obj for obj in Register.registerList if obj == 'edge']
+
     @property
     def registeredEntitiesAsList(self)->List[adsk.fusion.BRepFace]:
         '''
@@ -191,16 +253,40 @@ class Register:
         return [x.entity for x in Register.registerList]
     
     @property
-    def registeredComponentTokensAsList(self):
+    def registeredBodyTokensAsList(self):
         '''
-        Returns a list of unique Component tokens 
+        Returns a list of unique Body tokens 
         '''
-        return list(set([obj._component_token for obj in self.registerList]))
+        return list({obj._body_token for obj in self.registerList})
+
+    @property
+    def registeredBodyEntitiesAsList(self):
+        ''' returns list of registered body entities'''
+        return [g._design.findEntityByToken(token)[0] for token in self.registeredBodyTokensAsList]       
+
+    @property
+    def registeredOccurrenceEntitiesAsList(self):
+        '''
+        Returns a list of unique Body entities 
+        '''
+        def substituteIfRoot(token):
+            try:
+                return(g._design.findEntityByToken(token)[0]).assemblyContext.entityToken
+            except IndexError:
+                return None
+        return [occurrenceToken for occurrenceToken in [substituteIfRoot(token) for token in self.registeredBodyTokensAsList] if not occurrenceToken]
+
+    @property
+    def registeredOccurrenceTokensAsList(self):
+        '''
+        Returns a list of unique Body tokens 
+        '''
+        return list({obj._component_token for obj in self.registerList})
 
     @property
     def registeredComponentEntitiesAsList(self):
         '''
-        Returns a list of unique Component entities 
+        Returns a list of unique Component tokens 
         '''
         def substituteIfRoot(token):
             try:
@@ -208,18 +294,3 @@ class Register:
             except IndexError:
                 return g._rootComp
         return [substituteIfRoot(token) for token in self.registeredComponentTokensAsList]
-
-    @property
-    def registeredComponentHashesAsList(self):
-        '''
-        Returns a list of unique Component tokens 
-        '''
-        return [hash(token) for token in self.registeredComponentTokensAsList]
-   
-    @tokeniseEntity
-    # @lru_cache(maxsize=128)
-    def isOccurrenceRegistered(self, component_hash)->bool:
-        '''
-        Returns if an entity has been registered 
-        '''
-        return component_hash in list(set(obj.component_hash for obj in self.registerList))

@@ -17,6 +17,8 @@ RADIOBUTTONLIST_ID = 'dbButtonList'
 COMMAND_ID = "dogboneBtn"
 EDIT_ID = "dogboneEditBtn"
 FEATURE_ID = COMMAND_ID + 'Feature'
+NORMAL_ID = 'dogboneNormalId'
+MINIMAL_ID = 'dogboneMinimalId'
 
 _app = adsk.core.Application.get()
 _ui = _app.userInterface

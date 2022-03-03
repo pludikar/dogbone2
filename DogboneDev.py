@@ -18,8 +18,8 @@ import adsk.core, adsk.fusion
 import traceback
 from .common import common as g
 
-if g._appPath+"\\py_packages" not in sys.path:
-    sys.path.insert(0, g._appPath+"\\py_packages")
+if f'{g._appPath}\\py_packages' not in sys.path:
+    sys.path.insert(0, f'{g._appPath}\\py_packages')
 
 from .dbClasses.command import DogboneCommand
 
@@ -60,8 +60,8 @@ def run(context):
 def stop(context):
     try:
         logger.info('stop - removing Command Button')
-        dog.removeButtons()
         adsk.terminate()
+        dog.removeButtons()
     except:
         util.messageBox(traceback.format_exc())
 

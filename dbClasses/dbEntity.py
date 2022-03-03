@@ -27,13 +27,12 @@ class DbEntity(metaclass=PostInitCaller):
     _objectType: str
     
     def __init__(self, entity):
-        self.logger = logging.getLogger('dogbone.mgr'+self.__class__.__name__)
+        self.logger = logging.getLogger(f'dogbone.mgr{self.__class__.__name__}')
 
         self.register.add(self)
 
         self._entity = entity
 
-        self._nativeObject = entity.nativeObject
 
         self._entityToken = entity.entityToken
 
@@ -41,12 +40,21 @@ class DbEntity(metaclass=PostInitCaller):
 
         self._selected = False
 
-        self._component_token = dbUtils.get_component_token(entity) if entity.assemblyContext else g._rootComp.entityToken
+        self._body_token = entity.body.entityToken
+
+        self._body_hash = hash(self._body_token)
+
+        self._body_nativeObject_hash = hash(entity.body.nativeObject.entityToken) \
+                                        if entity.body.assemblyContext else entity.body.entityToken
+
+        self._component_hash = hash(entity.body.parentComponent.entityToken)
+
+        # self._occurrence_hash = hash(entity.assemblyContext.entityToken) \
+        #                         if entity.assemblyContext else hash(self.entity.body.entityToken)
 
         self._temp_id = self._entity.tempId
 
-        self._type: str
-
+        self._type: str = None
 
     def __hash__(self):
         return self._hash
@@ -56,16 +64,23 @@ class DbEntity(metaclass=PostInitCaller):
         return  f'{self._type}:{self._temp_id} - {name}' 
 
     def __eq__(self, other):
-        if isinstance(other, self.__class__):
-            return self._hash == other.__hash__
+        if isinstance(other, DbEntity):
+            return self._hash == other._hash
+
+        if type(other) == type(self.entity):
+            return self.entity == other
 
         if type(other) is int:
-            return self._hash == other
+            return (self._hash == other 
+                or self._body_hash == other
+                # or self._occurrence_hash == other
+                or self._component_hash == other
+                or self._body_nativeObject_hash == other)
 
         if type(other) is str:
-            return (self.type_ == other 
-                or self.entityToken == other
-                or self.entity.body.entityToken == other
+            return (self._type == other 
+                or self._entityToken == other
+                or self._body_token == other
             )
         
         return NotImplemented
@@ -79,20 +94,28 @@ class DbEntity(metaclass=PostInitCaller):
         return self._entity
 
     @property
-    def nativeObject(self):
-        return self._nativeObject
+    def nativeObject_hash(self):
+        return self._body_nativeObject_hash
+
+    @property
+    def occurrence_token(self):
+        return self._occurrence_token
         
     @property
+    def body_hash(self):
+        return self._body_hash
+
+    @property
+    def body_token(self):
+        return self._body_token
+
+    # @property
+    # def occurrence_hash(self):
+    #     return self._occurrence_hash
+
+    @property
     def component_hash(self):
-        return hash(self._component_token)
-
-    @property
-    def component_token(self):
-        return self._component_token
-
-    @property
-    def entity(self):
-        return self._entity
+        return self._component_hash
 
     @property
     def type_(self):

@@ -88,7 +88,7 @@ def eventHandler(handler_cls=adsk.core.Base):
             try:
 
                 class _Handler(handler_cls):
-                    name: str = notify_method.__name__ + '_handler'
+                    name: str = f'{notify_method.__name__}_handler'
 
                     def notify( self, eventArgs):
                         try:
@@ -155,7 +155,7 @@ def makeTempFaceVisible(method):
         bodies = c._rootComp.bRepBodies
 
         tempBody = method(*args, **kwargs)
-        tempBody.name = "Debug_" + method.__name__
+        tempBody.name = f'Debug_{method.__name__}'
         bodies.add(tempBody)
 
         baseFeat.finishEdit()
@@ -206,7 +206,7 @@ def timer(func):
     def wrapper(*args, **kwargs):
         startTime = time.time()
         result = func(*args, **kwargs)
-        logger.debug('{}: time taken = {}'.format(func.__name__, time.time() - startTime))
+        logger.debug(f'{func.__name__}: time taken = {time.time() - startTime}')
         return result
     return wrapper     
 

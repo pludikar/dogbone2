@@ -23,7 +23,7 @@ class DbFace(DbEntity):
         faces can be selected or deselected individually
         first face selection will cause all other appropriate faces and corresponding edges on the body to be selected
         validEdges dict makes lists of candidate edges available
-        each face or edge selection that is changed will reflect in the parent management object selectedOccurrences, selectedFaces and selectedEdges
+        each face or edge selection that is changed will reflect in the parent management object selectedOccurrences, selectedFaces and selectedges
     """
 
     def __init__(self, faceEntity):  #preload is used when faces are created from attributes.  preload will be a namedtuple of faceHash and occHash
@@ -34,7 +34,7 @@ class DbFace(DbEntity):
 
         self.faceNormal = u.getFaceNormal(self._entity)
         
-        self.topFacePlane, self.topFacePlaneHash = u.getTopFacePlane(faceEntity)
+        self._topFacePlane, self._topFaceEntity = u.getTopFacePlane(faceEntity)
 
         self._type = 'face'
 
@@ -62,7 +62,7 @@ class DbFace(DbEntity):
                 continue
             try:
                 edgeObject = DbEdge(edge, self) #create a new edgeObject
-                edgeObject.select()
+                # edgeObject.select()
                 logger.debug(f'edge added {edgeObject}')
     
             except:
@@ -76,7 +76,7 @@ class DbFace(DbEntity):
 
     @property
     def hasEdges(self):
-        return self._hasEdges
+        return len(self.register.selectedgesByParentAsList(self))>0
 
     def select(self):
         associatedEdges = self.register.registeredEdgesByParentAsList(self)
@@ -85,8 +85,18 @@ class DbFace(DbEntity):
         self._selected = True
 
     def deselect(self):
-        associatedEdges = self.register.registeredEdgesByParentAsList(self)
+
+        associatedEdges = self.register.selectedgesByParentAsList(self)
         for edgeObject in associatedEdges:
             edgeObject.deselect()
-        self._select = False
+        self._selected = False
+
+    @property
+    def topFaceEntity(self):
+        return self._topFaceEntity
+
+    @property
+    def topFacePlane(self):
+        return self._topFacePlane
+        
 

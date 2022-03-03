@@ -167,7 +167,7 @@ def messageBox(*args):
     adsk.core.Application.get().userInterface.messageBox(*args)
 
 
-def getTopFacePlane(faceEntity: adsk.fusion.BRepFace)->Tuple[adsk.core.Plane, int]:
+def getTopFacePlane(faceEntity: adsk.fusion.BRepFace)->Tuple[adsk.core.Plane, adsk.fusion.BRepFace]:
     '''
     Creates a plane at the highest point of a body - relative to the normal of a face
     This allows dogbones to be extruded from any point on the body, without being associated with an adjacent face 
@@ -196,7 +196,7 @@ def getTopFacePlane(faceEntity: adsk.fusion.BRepFace)->Tuple[adsk.core.Plane, in
         faceList.append([face, distance])
     sortedFaceList = sorted(faceList, key = lambda x: x[1])
     top = sortedFaceList[-1][0]
-    return (adsk.core.Plane.create(top.pointOnFace, getFaceNormal(top)),hash(top.entityToken))
+    return (adsk.core.Plane.create(top.pointOnFace, getFaceNormal(top)), top)
 
 def getAllParallelFaces(faceEntity: adsk.fusion.BRepFace)->List[adsk.fusion.BRepFace]:
     '''

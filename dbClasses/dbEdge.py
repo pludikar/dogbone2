@@ -19,27 +19,33 @@ logger = logging.getLogger('dogbone.dbEdge')
 
 class DbEdge(DbEntity):
 
-    def __init__(self, edge: adsk.fusion.BRepEdge, parent: Type):
+    def __init__(self, edge: adsk.fusion.BRepEdge, parent: object):
         logger.info('---------------------------------creating edge---------------------------')
         super().__init__(edge)
 
         self._topPlane = parent.topFacePlane
-        self._parent = parent.entityToken
+        self._parentToken = parent.entityToken
         self._type = 'edge'
         logger.debug(f'edge initiated - {self}')
-        # self.params = DbParams()
 
+    # def __eq__(self, other):
+    #     if type(other) is str:
+    #         if self._parentToken == other:
+    #             return True
+    #     super().__eq__(other)
+ 
     @property
     def parent(self):
-        return self._parent
+        return self._parentToken
 
     @property
     def parentObject(self):
-        return self.register.getobject(self._parent)
+        return self.register.getobject(self._parentToken)
 
     @property
     def topFacePlane(self):
         return self._topPlane
+        
 
     def getdbTool(self, params: DbParams):
         '''

@@ -10,6 +10,7 @@ from ..common import dbutils as dbUtils, common as g
 from .register import Register
 from .dbFace import DbFace
 from .dataclasses import DbParams
+from .exceptionclasses import NoEdgesToProcess, EdgeNotRegistered, FaceNotRegistered
 
 logger = logging.getLogger('dogbone.dbController')
 
@@ -25,23 +26,34 @@ class DbController:
         pass
 
     def selectFace(self, face):
-        self.register.getObject(face).select()
+        self.register.getobject(face).select()
 
     def deSelectFace(self, face):
-        self.register.getObject(face).deselect()
+        self.register.getobject(face).deselect()
 
     def deSelectAllFaces(self, face):
         pass
 
     def selectEdge(self,edge):
-        self.register.getObject(edge).select()
+        try:
+            edgeObject = self.register.getobject(edge)
+            edgeObject.select()
+            if edgeObject.parent not in self.register.selectedFacesAsList:
+                edgeObject.parentObject.select()
+        except EdgeNotRegistered:
+            pass
+        except FaceNotRegistered:
+            pass
+
 
     def deSelectEdge(self,edge):
-        self.register.getObject(edge).deselect()
+        edgeObject = self.register.getobject(edge)
+        edgeObject.deselect()
+        if not edgeObject.parentObject.hasEdges:
+            edgeObject.parentObject.deselect()
 
     def selectAllFaces(self, face):
-        componentHash = dbUtils.get_component_hash(face)
-        faceList = self.register.registeredObjectsByComponentAsList(DbFace, componentHash )
+        faceList = self.register.registeredFacesByBodyAsList(face.body )
         for faceObject in faceList:
             faceObject.select()
 
@@ -51,46 +63,46 @@ class DbController:
             faceObj=DbFace(faceEntity)
             if not faceObj.hasEdges:
                 continue
-            logger.debug(f'face being selected {faceObj}')
-            faceObj.select()
+            # logger.debug(f'face being selected {faceObj}')
+            # faceObj.select()
 
-    def getDogboneTool(self, component: adsk.fusion.Component, params: DbParams = None):
+    def getDogboneTool(self, bodyEntity: adsk.fusion.BRepBody, params: DbParams = None):
 
-        toolCollection = adsk.core.ObjectCollection.create()
+        # toolCollection = adsk.core.ObjectCollection.create()
         tempBrepMgr = adsk.fusion.TemporaryBRepManager.get()
         toolBodies = None
 
-        for body in component.bRepBodies:
+        representativeFaceObject = self.register.getobject(bodyEntity)
 
-            body = self.register.getobject(body)
-            if not body:
+        for faceObj in self.register.selectedFacesByBodyAsList(representativeFaceObject.entity.body):
+            if not faceObj.hasEdges:
                 continue
 
-            for faceObj in self.register.registeredFacesByComponentAsList(component):
-                if not faceObj.hasEdges:
+            logger.debug(f'processing {faceObj} *****************')
+
+            for edge in faceObj:
+                if not edge.isselected:
                     continue
+                dbToolBody = edge.getdbTool(params)
+                if not toolBodies:
+                    toolBodies = dbToolBody
+                    continue
+                tempBrepMgr.booleanOperation(
+                    toolBodies,
+                    dbToolBody,
+                    adsk.fusion.BooleanTypes.UnionBooleanType)  #combine all the dogbones into a single toolbody
 
-                logger.debug(f'processing {faceObj} *****************')
+        if not toolBodies:
+            raise NoEdgesToProcess('Empty Edge Collection')
+        # baseFeatures = g._rootComp.features.baseFeatures
+        # baseFeature = baseFeatures.add()
+        # baseFeature.name = 'dogbone'
 
-                for edge in faceObj:
-                    dbToolBody = edge.getdbTool(params)
-                    if not toolBodies:
-                        toolBodies = dbToolBody
-                        continue
-                    tempBrepMgr.booleanOperation(
-                        toolBodies,
-                        dbToolBody,
-                        adsk.fusion.BooleanTypes.UnionBooleanType)  #combine all the dogbones into a single toolbody
+        # baseFeature.startEdit()
+        # dbB = g._rootComp.bRepBodies.add(toolBodies, baseFeature)
+        # dbB.name = 'dogboneTool'
+        # baseFeature.finishEdit()
 
-        baseFeatures = g._rootComp.features.baseFeatures
-        baseFeature = baseFeatures.add()
-        baseFeature.name = 'dogbone'
-
-        baseFeature.startEdit()
-        dbB = g._rootComp.bRepBodies.add(toolBodies, baseFeature)
-        dbB.name = 'dogboneTool'
-        baseFeature.finishEdit()
-
-        toolCollection.add(baseFeature.bodies.item(0))
-        targetBody = self.register.registeredFacesByComponentAsList(component)[0].entity.body
-        return toolCollection, targetBody
+        # toolCollection.add(baseFeature.bodies.item(0))
+        # targetBody = self.register.registeredFacesByBodyAsList(representativeFaceObject.body_token)[0].entity.body
+        return toolBodies # toolCollection, targetBody
