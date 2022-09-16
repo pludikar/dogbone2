@@ -13,20 +13,20 @@ MORTISE_ALONG_LONGSIDE_MODE = 0x2
 MORTISE_ALONG_SHORTSIDE_MODE = 0x4
 FROMTOP_MODE = 0x8
 
-RADIOBUTTONLIST_ID = 'dbButtonList' 
-COMMAND_ID = "dogboneBtn"
-EDIT_ID = "dogboneEditBtn"
+RADIOBUTTONLIST_ID = 'seButtonList' 
+COMMAND_ID = "scribeEdgeBtn"
+EDIT_ID = "scribeEdgeEditBtn"
 FEATURE_ID = COMMAND_ID + 'Feature'
-NORMAL_ID = 'dogboneNormalId'
-MINIMAL_ID = 'dogboneMinimalId'
+NORMAL_ID = 'scribeEdgeNormalId'
+MINIMAL_ID = 'scribeEdgeMinimalId'
 
 _app = adsk.core.Application.get()
 _ui = _app.userInterface
-_design = _app.activeProduct
+_design: adsk.fusion.Design = _app.activeProduct
 _rootComp = _design.rootComponent
 
 # get parent folder path
 _appPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) 
 
-_customDogboneFeatureDef: adsk.fusion.CustomFeatureDefinition = None
+_customScribeEdgeFeatureDef: adsk.fusion.CustomFeatureDefinition = None
 

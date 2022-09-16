@@ -1,36 +1,30 @@
 import logging
 import os, sys
+import re
+import pandas as pd
 from tkinter.messagebox import RETRY
 import adsk.core, adsk.fusion
 from typing import List, Callable
 
 from math import sqrt, pi
 import json
-import time
+import time, csv, io
+from itertools import tee, chain, islice
 
 from ..common import dbutils as util
-from ..common import common as g 
+from ..common import common as g
+# from ..common.paramsClass import Params 
 from ..common.decorators import eventHandler, HandlerCollection, timer
 
-from ..dbClasses import dataclasses as dc, dbEdge, dbFace
-from ..dbClasses.register import Register
+# from ..dbClasses import dataclasses as dc, dbEdge, dbFace
+# from ..dbClasses.register import Register
 
-from ..dbClasses.dbController import DbController
-from .exceptionclasses import NoEdgesToProcess, EdgeNotRegistered, FaceNotRegistered
+# from ..dbClasses.dbController import DbController
 
-# from ..dbClasses.staticDogbones import createStaticDogbones
+logger = logging.getLogger('scribeEdge.command')
 
-makeNative = lambda x: x.nativeObject if x.nativeObject else x
-reValidateFace = lambda comp, x: comp.findBRepUsingPoint(x, adsk.fusion.BRepEntityTypes.BRepFaceEntityType,-1.0 ,False ).item(0)
-faceSelections = lambda selectionObjects: list(filter(lambda face: face.objectType == adsk.fusion.BRepFace.classType(), selectionObjects))
-edgeSelections = lambda selectionObjects: list(filter(lambda edge: edge.objectType == adsk.fusion.BRepEdge.classType(), selectionObjects))
-
-logger = logging.getLogger('dogbone.command')
-
-class DogboneCommand(object):
+class ScribeEdgeCommand(object):
     
-    register = Register()
-    controller = DbController()
     _customFeatureDef: adsk.fusion.CustomFeatureDefinition = None
     controlKeyPressed: bool = False
     mouseClickAction: Callable = None
@@ -39,52 +33,22 @@ class DogboneCommand(object):
 
     def __init__(self):
         
-        logger.info('dogbone.command')
+        logger.info('scribeEdge.command')
 
-        self.dbParams = dc.DbParams()
-        self.faceSelections = adsk.core.ObjectCollection.create()
-        self.offsetStr = "0"
-        self.toolDiaStr = f'{self.dbParams.toolDia} in'
-        self.edges = []
+        self.face: adsk.fusion.BRepFace = None
+        self.refEdge: adsk.fusion.BRepEdge = None
+        self.scribedEdge: adsk.fusion.BRepEdge = None
+        self.data = None
+        self.edgeType =  0
         self.benchmark = False
         self.errorCount = 0
-
-        self.addingEdges = 0
-        self.logging = logging.DEBUG
-        # {'Notset':0,'Debug':10,'Info':20,'Warning':30,'Error':40}
 
         self.expandModeGroup = True
         self.expandSettingsGroup = False
         self.levels = {}
-
-        self.registeredEntities = adsk.core.ObjectCollection.create()
         
     def __del__(self):
         HandlerCollection.remove()  #clear event handers
-
-    def writeDefaults(self):
-        logger.info('config file write')
-
-        json_file = open(os.path.join(g._appPath, 'defaults.dat'), 'w', encoding='UTF-8')
-        json.dump(self.dbParams.dict(), json_file, ensure_ascii = False)
-        json_file.close()
-    
-    def readDefaults(self): 
-        logger.info('config file read')
-        if not os.path.isfile(os.path.join(g._appPath, 'defaults.dat')):
-            return
-        json_file = open(os.path.join(g._appPath, 'defaults.dat'), 'r', encoding='UTF-8')
-        try:
-            resultStr = json.load(json_file)
-            self.dbParams= dc.DbParams(**resultStr)
-        except ValueError:
-            logger.error('default.dat error')
-            json_file.close()
-            json_file = open(os.path.join(g._appPath, 'defaults.dat'), 'w', encoding='UTF-8')
-            json.dump(self.dbParams.dict(), json_file, ensure_ascii = False)
-            return
-
-        json_file.close()
             
     def debugFace(self, face):
         if logger.level < logging.DEBUG:
@@ -104,34 +68,34 @@ class DogboneCommand(object):
             return -1
         
         # add add-in to UI
-        buttonDogbone = g._ui.commandDefinitions.addButtonDefinition(
+        buttonScribeEdge = g._ui.commandDefinitions.addButtonDefinition(
                     g.COMMAND_ID,
-                    'Dogbone',
-                    'Creates dogbones at all inside corners of a face',
+                    'ScribeEdge',
+                    'Creates scribeEdges at all inside corners of a face',
                     'Resources')
 
-        buttonDogboneEdit = g._ui.commandDefinitions.addButtonDefinition(
+        buttonScribeEdgeEdit = g._ui.commandDefinitions.addButtonDefinition(
                     g.EDIT_ID,
-                    'Edit Dogbone',
-                    'Edits dogbones',
+                    'Edit ScribeEdge',
+                    'Edits scribeEdges',
                     '')
 
         
         createPanel = g._ui.allToolbarPanels.itemById('SolidCreatePanel')
         separatorControl = createPanel.controls.addSeparator()
         dropDownControl = createPanel.controls.addDropDown(
-                    'Dogbone',
+                    'ScribeEdge',
                     'Resources',
                     'dbDropDown',
                     separatorControl.id )
 
         buttonControl = dropDownControl.controls.addCommand(
-                    buttonDogbone,
-                    'dogboneBtn',
+                    buttonScribeEdge,
+                    'scribeEdgeBtn',
                     False)
         editButtonControl = dropDownControl.controls.addCommand(
-                    buttonDogboneEdit,
-                    'dogboneEditBtn',
+                    buttonScribeEdgeEdit,
+                    'scribeEdgeEditBtn',
                     False)
 
         # Make the button available in the panel.
@@ -140,17 +104,17 @@ class DogboneCommand(object):
 
         self._customFeatureDef = adsk.fusion.CustomFeatureDefinition.create(
                     g.FEATURE_ID,
-                    'dogbone feature',
+                    'scribeEdge feature',
                     'Resources')
         self._customFeatureDef.editCommandId = g.EDIT_ID
 
         #attach event handlers
 
-        self.onCreate(event = buttonDogbone.commandCreated)
+        self.onCreate(event = buttonScribeEdge.commandCreated)
 
-        self.onEditCreate(event = buttonDogboneEdit.commandCreated)
+        self.onEditCreate(event = buttonScribeEdgeEdit.commandCreated)
         
-        self.computeDogbones(event = self._customFeatureDef.customFeatureCompute)
+        self.computeScribeEdges(event = self._customFeatureDef.customFeatureCompute)
 
         logger.debug(f'{HandlerCollection.str__()}')
 
@@ -197,139 +161,76 @@ class DogboneCommand(object):
             provides fast method of finding face that owns an edge
         """
         
-        logger.info(f"\n{'='*80}\n{'-'*32}dogbone started{'-'*33}\n{'='*80}")
+        logger.info(f"\n{'='*80}\n{'-'*32}scribeEdge started{'-'*33}\n{'='*80}")
             
-        self.register.registerList.clear()
+        # self.register.registerList.clear()
 
-        self.faces = []
         self.errorCount = 0
-        self.faceSelections.clear()
+
+        self.face = None
+        self.refEdge = None
+        self.scribedEdge = None
         
         self.workspace = g._ui.activeWorkspace
                 
-        if g._design.designType != adsk.fusion.DesignTypes.ParametricDesignType :
-            returnValue = g._ui.messageBox('DogBone only works in Parametric Mode \n Do you want to change modes?',
-                                             'Change to Parametric mode',
-                                             adsk.core.MessageBoxButtonTypes.YesNoButtonType,
-                                             adsk.core.MessageBoxIconTypes.WarningIconType)
-            if returnValue != adsk.core.DialogResults.DialogYes:
-                return
-            g._design.designType = adsk.fusion.DesignTypes.ParametricDesignType
-        self.readDefaults()
 
         inputs :adsk.core.CommandInputs = inputs.command.commandInputs
         
-        selInput0 = inputs.addSelectionInput(
-                    'select',
+        selFaceInput = inputs.addSelectionInput(
+                    'selectedFace',
                     'Face',
-                    'Select a face to apply dogbones to all internal corner edges')
-        selInput0.tooltip =\
-            'Select a face to apply dogbones to all internal corner edges\n'\
+                    'Select a face to apply scribeEdges')
+        selFaceInput.tooltip =\
+            'Select a face to apply scribeEdges\n'\
             '*** Select faces by clicking on them. DO NOT DRAG SELECT! ***' 
 
-        selInput0.addSelectionFilter('PlanarFaces')
-        selInput0.setSelectionLimits(1,0)
+        selFaceInput.addSelectionFilter('PlanarFaces')
+        selFaceInput.setSelectionLimits(1,1)
         
-        selInput1 = inputs.addSelectionInput(
-                    'edgeSelect',
-                    'DogBone Edges',
-                    'Select or de-select any internal edges dropping down from a selected face (to apply dogbones to')
+        selStartPointInput = inputs.addSelectionInput(
+                    'refEdge',
+                    'Reference Edge',
+                    'Edge from which measurements are started')
 
-        selInput1.tooltip ='Select or de-select any internal edges dropping down from a selected face (to apply dogbones to)' 
-        selInput1.addSelectionFilter('LinearEdges')
-        selInput1.setSelectionLimits(1,0)
-        selInput1.isVisible = False
+        selStartPointInput.tooltip ='Select or de-select any internal edges dropping down from a selected face (to apply scribeEdges to)' 
+        selStartPointInput.addSelectionFilter('LinearEdges')
+        selStartPointInput.setSelectionLimits(1,1)
+        selStartPointInput.isVisible = False
+
+        selScribedEdgeInput = inputs.addSelectionInput(
+                    'scribedEdge',
+                    'Scribed Edge',
+                    'Select Edge to be scribed')
+
+        selScribedEdgeInput.tooltip ='Select Edge to be scribed' 
+        selScribedEdgeInput.addSelectionFilter('LinearEdges')
+        selScribedEdgeInput.setSelectionLimits(1,1)
+        selScribedEdgeInput.isVisible = False
+
+        fileImportButton = inputs.addBoolValueInput('csvFile', 'Import File', False, 'resources/button', True)
+        
+        fileTextBox = inputs.addTextBoxCommandInput('fileTextBox', 'File:', 'No CSV file selected', 1, True)
                 
-        inp = inputs.addValueInput(
-                    'toolDia',
-                    'Tool Diameter               ',
-                    g._design.unitsManager.defaultLengthUnits,
-                    adsk.core.ValueInput.createByString(self.toolDiaStr))
-        inp.tooltip = "Size of the tool with which you'll cut the dogbone."
-        
-        offsetInp = inputs.addValueInput(
-                    'toolDiaOffset',
-                    'Tool diameter offset',
-                    g._design.unitsManager.defaultLengthUnits,
-                    adsk.core.ValueInput.createByString(self.offsetStr))
-        offsetInp.tooltip = "Increases the tool diameter"
-        offsetInp.tooltipDescription = "Use this to create an oversized dogbone.\n"\
-                                        "Normally set to 0.  \n"\
-                                        "A value of .010 would increase the dogbone diameter by .010 \n"\
-                                        "Used when you want to keep the tool diameter and oversize value separate"
-        
         modeGroup: adsk.core.GroupCommandInput = inputs.addGroupCommandInput('modeGroup', 'Mode')
         modeGroup.isExpanded = self.expandModeGroup
+        # modeGroup.isVisible = False
         modeGroupChildInputs = modeGroup.children
         
         typeRowInput: adsk.core.ButtonRowCommandInput = modeGroupChildInputs\
                 .addButtonRowCommandInput(
-                    'dogboneType',
+                    'scribeEdgeType',
                     'Type',
                     False)
         typeRowInput.listItems.add(
-                    'Normal Dogbone',
-                    self.dbParams.dbType == 'Normal Dogbone',
-                    'resources/normal' )
+                    'Add ScribeEdge',
+                    True,
+                    'resources/addMaterial')
         typeRowInput.listItems.add(
-                    'Minimal Dogbone',
-                    self.dbParams.dbType == 'Minimal Dogbone',
-                    'resources/minimal' )
-        typeRowInput.listItems.add(
-                    'Mortise Dogbone',
-                    self.dbParams.dbType == 'Mortise Dogbone',
-                    'resources/hidden' )
-        typeRowInput.tooltipDescription =\
-                    "Minimal dogbones creates visually less prominent dogbones, but results in an interference fit " \
-                    "that, for example, will require a larger force to insert a tenon into a mortise.\n" \
-                    "\n"\
-                    "Mortise dogbones create dogbones on the shortest sides, or the longest sides.\n" \
-                    "A piece with a tenon can be used to hide them if they're not cut all the way through the workpiece."
-        
-        mortiseRowInput: adsk.core.ButtonRowCommandInput = modeGroupChildInputs\
-                .addButtonRowCommandInput(
-                    'mortiseType',
-                    'Mortise Type',
-                    False)
-        mortiseRowInput.listItems.add(
-                    'On Long Side',
-                    self.dbParams.longSide,
-                    'resources/hidden/longside' )
-        mortiseRowInput.listItems.add(
-                    'On Short Side',
-                    not self.dbParams.longSide,
-                    'resources/hidden/shortside' )
-        mortiseRowInput.tooltipDescription = "Along Longest will have the dogbones cut into the longer sides." \
-                                             "\nAlong Shortest will have the dogbones cut into the shorter sides."
-        mortiseRowInput.isVisible = self.dbParams.dbType == 'Mortise Dogbone'
+                    'Subtract ScribeEdge',
+                    False,
+                    'resources/removeMaterial')
+        # typeRowInput.isVisible = False
 
-        minPercentInp = modeGroupChildInputs.addValueInput(
-                    'minimalPercent',
-                    'Percentage Reduction',
-                    '',
-                    adsk.core.ValueInput.createByReal(self.dbParams.minimalPercent))
-        minPercentInp.tooltip = "Percentage of tool radius added to dogBone offset."
-        minPercentInp.tooltipDescription =\
-             "This should typically be left at 10%, but if the fit is too tight, it should be reduced"
-        minPercentInp.isVisible = self.dbParams.dbType == 'Minimal Dogbone'
-
-        depthRowInput: adsk.core.ButtonRowCommandInput = modeGroupChildInputs\
-                .addButtonRowCommandInput(
-                    'depthExtent',
-                    'Depth Extent',
-                    False)
-        depthRowInput.listItems.add(
-                    'From Selected Face',
-                    not self.dbParams.fromTop,
-                    'resources/fromFace' )
-        depthRowInput.listItems.add(
-                    'From Top Face',
-                    self.dbParams.fromTop,
-                    'resources/fromTop' )
-        depthRowInput.tooltipDescription =\
-             "When \"From Top Face\" is selected, all dogbones will be extended to the top most face\n"\
-            "\nThis is typically chosen when you don't want to, or can't do, double sided machining."
- 
         settingGroup: adsk.core.GroupCommandInput = inputs.addGroupCommandInput(
                     'settingsGroup',
                     'Settings')
@@ -344,26 +245,6 @@ class DogboneCommand(object):
         occurrenceTable.isFullWidth = True
 
         rowCount = 0
-        if not self.register.registeredFacesAsList:
-            for faceObject in self.register.registeredFacesAsList:
-                occurrenceTable.addCommandInput(
-                    inputs.addImageCommandInput(
-                        f"row{rowCount}", 
-                        faceObject.body_hash, 
-                        'resources/tableBody/16x16-normal.png'),
-                        rowCount,
-                        0)
-                occurrenceTable.addCommandInput(
-                    inputs.addTextBoxCommandInput(
-                        f"row{rowCount}Name",
-                        "          ",
-                        faceObject.face.body.name,
-                        1,
-                        True),
-                        rowCount,
-                        1)
-                rowCount+=1
-
 
         benchMark = settingGroupChildInputs.addBoolValueInput(
                     "benchmark",
@@ -372,29 +253,22 @@ class DogboneCommand(object):
                     "",
                     self.benchmark)
         benchMark.tooltip = "Enables benchmarking"
-        benchMark.tooltipDescription = "When enabled, shows overall time taken to process all selected dogbones."
+        benchMark.tooltipDescription = "When enabled, shows overall time taken to process all selected scribeEdges."
 
         logDropDownInp: adsk.core.DropDownCommandInput = settingGroupChildInputs.addDropDownCommandInput(
                     "logging",
                     "Logging level",
                     adsk.core.DropDownStyles.TextListDropDownStyle)
         logDropDownInp.tooltip = "Enables logging"
-        logDropDownInp.tooltipDescription = "Creates a dogbone.log file. \n" \
+        logDropDownInp.tooltipDescription = "Creates a scribeEdge.log file. \n" \
                      f"Location: {os.path.join(g._appPath, 'dogBone.log')}"
-
-        logDropDownInp.listItems.add('Notset',
-                                     self.logging == 0)
-        logDropDownInp.listItems.add('Debug',
-                                     self.logging == 10)
-        logDropDownInp.listItems.add('Info',
-                                     self.logging == 20)
 
         cmd:adsk.core.Command = inputs.command
 
         # Add handlers to this command.
         self.onExecute(event = cmd.execute)
         # self.onExecutePreview(event = cmd.executePreview)
-        self.onDestroy(event = cmd.destroy)
+        # self.onDestroy(event = cmd.destroy)
         self.onDeactivate(event = cmd.deactivate)
         self.onPreSelect(event = cmd.preSelect)
         self.onValidate(event = cmd.validateInputs)
@@ -404,7 +278,7 @@ class DogboneCommand(object):
         self.onMouseDoubleClick(event = cmd.mouseDoubleClick)
         self.onMouseClick(event = cmd.mouseClick)
 
-        self.setSelections(inputs, selInput0 )
+        # self.setSelections(inputs, selFaceInput )
         logger.debug(f'{HandlerCollection.str__()}')
 
 
@@ -426,33 +300,43 @@ class DogboneCommand(object):
                 
         inputs :adsk.core.CommandInputs = inputs.command.commandInputs
         
-        selInput0 = inputs.addSelectionInput(
+        selFaceInput = inputs.addSelectionInput(
                     'select',
                     'Face',
-                    'Select a face to apply dogbones to all internal corner edges')
-        selInput0.tooltip =\
-            'Select a face to apply dogbones to all internal corner edges\n'\
+                    'Select face used to measure scribeEdge offsets')
+        selFaceInput.tooltip =\
+            'Select face used to measure scribeEdge offsets\n'\
             '*** Select faces by clicking on them. DO NOT DRAG SELECT! ***' 
 
-        selInput0.addSelectionFilter('PlanarFaces')
-        selInput0.setSelectionLimits(1,0)
+        selFaceInput.addSelectionFilter('PlanarFaces')
+        selFaceInput.setSelectionLimits(1,0)
         
-        selInput1 = inputs.addSelectionInput(
+        selStartPointInput = inputs.addSelectionInput(
                     'edgeSelect',
                     'DogBone Edges',
-                    'Select or de-select any internal edges dropping down from a selected face (to apply dogbones to')
+                    'Select vertex used as start point of measurement')
 
-        selInput1.tooltip ='Select or de-select any internal edges dropping down from a selected face (to apply dogbones to)' 
-        selInput1.addSelectionFilter('LinearEdges')
-        selInput1.setSelectionLimits(1,0)
-        selInput1.isVisible = False
+        selStartPointInput.tooltip ='Select vertex used as start point of measurement' 
+        selStartPointInput.addSelectionFilter('Vertex')
+        selStartPointInput.setSelectionLimits(1,0)
+        selStartPointInput.isVisible = False
+
+        selStartPointInput = inputs.addSelectionInput(
+                    'edgeSelect',
+                    'DogBone Edges',
+                    'Select vertex used as start point of measurement')
+
+        selStartPointInput.tooltip ='Select vertex used as start point of measurement' 
+        selStartPointInput.addSelectionFilter('Vertex')
+        selStartPointInput.setSelectionLimits(1,0)
+        selStartPointInput.isVisible = False
                 
         inp = inputs.addValueInput(
                     'toolDia',
                     'Tool Diameter               ',
                     g._design.unitsManager.defaultLengthUnits,
                     adsk.core.ValueInput.createByString(self.toolDiaStr))
-        inp.tooltip = "Size of the tool with which you'll cut the dogbone."
+        inp.tooltip = "Size of the tool with which you'll cut the scribeEdge."
         
         offsetInp = inputs.addValueInput(
                     'toolDiaOffset',
@@ -460,9 +344,9 @@ class DogboneCommand(object):
                     g._design.unitsManager.defaultLengthUnits,
                     adsk.core.ValueInput.createByString(self.offsetStr))
         offsetInp.tooltip = "Increases the tool diameter"
-        offsetInp.tooltipDescription = "Use this to create an oversized dogbone.\n"\
+        offsetInp.tooltipDescription = "Use this to create an oversized scribeEdge.\n"\
                                         "Normally set to 0.  \n"\
-                                        "A value of .010 would increase the dogbone diameter by .010 \n"\
+                                        "A value of .010 would increase the scribeEdge diameter by .010 \n"\
                                         "Used when you want to keep the tool diameter and oversize value separate"
         
         modeGroup: adsk.core.GroupCommandInput = inputs.addGroupCommandInput('modeGroup', 'Mode')
@@ -471,26 +355,26 @@ class DogboneCommand(object):
         
         typeRowInput: adsk.core.ButtonRowCommandInput = modeGroupChildInputs\
                 .addButtonRowCommandInput(
-                    'dogboneType',
+                    'scribeEdgeType',
                     'Type',
                     False)
         typeRowInput.listItems.add(
-                    'Normal Dogbone',
-                    self.dbParams.dbType == 'Normal Dogbone',
+                    'Normal ScribeEdge',
+                    self.dbParams.dbType == 'Normal ScribeEdge',
                     'resources/normal' )
         typeRowInput.listItems.add(
-                    'Minimal Dogbone',
-                    self.dbParams.dbType == 'Minimal Dogbone',
+                    'Minimal ScribeEdge',
+                    self.dbParams.dbType == 'Minimal ScribeEdge',
                     'resources/minimal' )
         typeRowInput.listItems.add(
-                    'Mortise Dogbone',
-                    self.dbParams.dbType == 'Mortise Dogbone',
+                    'Mortise ScribeEdge',
+                    self.dbParams.dbType == 'Mortise ScribeEdge',
                     'resources/hidden' )
         typeRowInput.tooltipDescription =\
-                    "Minimal dogbones creates visually less prominent dogbones, but results in an interference fit " \
+                    "Minimal scribeEdges creates visually less prominent scribeEdges, but results in an interference fit " \
                     "that, for example, will require a larger force to insert a tenon into a mortise.\n" \
                     "\n"\
-                    "Mortise dogbones create dogbones on the shortest sides, or the longest sides.\n" \
+                    "Mortise scribeEdges create scribeEdges on the shortest sides, or the longest sides.\n" \
                     "A piece with a tenon can be used to hide them if they're not cut all the way through the workpiece."
         
         mortiseRowInput: adsk.core.ButtonRowCommandInput = modeGroupChildInputs\
@@ -506,9 +390,9 @@ class DogboneCommand(object):
                     'On Short Side',
                     not self.dbParams.longSide,
                     'resources/hidden/shortside' )
-        mortiseRowInput.tooltipDescription = "Along Longest will have the dogbones cut into the longer sides." \
-                                             "\nAlong Shortest will have the dogbones cut into the shorter sides."
-        mortiseRowInput.isVisible = self.dbParams.dbType == 'Mortise Dogbone'
+        mortiseRowInput.tooltipDescription = "Along Longest will have the scribeEdges cut into the longer sides." \
+                                             "\nAlong Shortest will have the scribeEdges cut into the shorter sides."
+        mortiseRowInput.isVisible = self.dbParams.dbType == 'Mortise ScribeEdge'
 
         minPercentInp = modeGroupChildInputs.addValueInput(
                     'minimalPercent',
@@ -518,7 +402,7 @@ class DogboneCommand(object):
         minPercentInp.tooltip = "Percentage of tool radius added to dogBone offset."
         minPercentInp.tooltipDescription =\
              "This should typically be left at 10%, but if the fit is too tight, it should be reduced"
-        minPercentInp.isVisible = self.dbParams.dbType == 'Minimal Dogbone'
+        minPercentInp.isVisible = self.dbParams.dbType == 'Minimal ScribeEdge'
 
         depthRowInput: adsk.core.ButtonRowCommandInput = modeGroupChildInputs\
                 .addButtonRowCommandInput(
@@ -534,7 +418,7 @@ class DogboneCommand(object):
                     self.dbParams.fromTop,
                     'resources/fromTop' )
         depthRowInput.tooltipDescription =\
-             "When \"From Top Face\" is selected, all dogbones will be extended to the top most face\n"\
+             "When \"From Top Face\" is selected, all scribeEdges will be extended to the top most face\n"\
             "\nThis is typically chosen when you don't want to, or can't do, double sided machining."
  
         settingGroup: adsk.core.GroupCommandInput = inputs.addGroupCommandInput(
@@ -551,25 +435,25 @@ class DogboneCommand(object):
         occurrenceTable.isFullWidth = True
 
         rowCount = 0
-        if not self.register.registeredFacesAsList:
-            for faceObject in self.register.registeredFacesAsList:
-                occurrenceTable.addCommandInput(
-                    inputs.addImageCommandInput(
-                        f"row{rowCount}", 
-                        faceObject.body_hash, 
-                        'resources/tableBody/16x16-normal.png'),
-                        rowCount,
-                        0)
-                occurrenceTable.addCommandInput(
-                    inputs.addTextBoxCommandInput(
-                        f"row{rowCount}Name",
-                        "          ",
-                        faceObject.face.body.name,
-                        1,
-                        True),
-                        rowCount,
-                        1)
-                rowCount+=1
+        # if not self.register.registeredFacesAsList:
+        #     for faceObject in self.register.registeredFacesAsList:
+        #         occurrenceTable.addCommandInput(
+        #             inputs.addImageCommandInput(
+        #                 f"row{rowCount}", 
+        #                 faceObject.body_hash, 
+        #                 'resources/tableBody/16x16-normal.png'),
+        #                 rowCount,
+        #                 0)
+        #         occurrenceTable.addCommandInput(
+        #             inputs.addTextBoxCommandInput(
+        #                 f"row{rowCount}Name",
+        #                 "          ",
+        #                 faceObject.face.body.name,
+        #                 1,
+        #                 True),
+        #                 rowCount,
+        #                 1)
+        #         rowCount+=1
 
 
         benchMark = settingGroupChildInputs.addBoolValueInput(
@@ -579,14 +463,14 @@ class DogboneCommand(object):
                     "",
                     self.benchmark)
         benchMark.tooltip = "Enables benchmarking"
-        benchMark.tooltipDescription = "When enabled, shows overall time taken to process all selected dogbones."
+        benchMark.tooltipDescription = "When enabled, shows overall time taken to process all selected scribeEdges."
 
         logDropDownInp: adsk.core.DropDownCommandInput = settingGroupChildInputs.addDropDownCommandInput(
                     "logging",
                     "Logging level",
                     adsk.core.DropDownStyles.TextListDropDownStyle)
         logDropDownInp.tooltip = "Enables logging"
-        logDropDownInp.tooltipDescription = "Creates a dogbone.log file. \n" \
+        logDropDownInp.tooltipDescription = "Creates a scribeEdge.log file. \n" \
                      f"Location: {os.path.join(g._appPath, 'dogBone.log')}"
 
         logDropDownInp.listItems.add('Notset',
@@ -626,45 +510,42 @@ class DogboneCommand(object):
 
     @eventHandler(handler_cls = adsk.core.MouseEventHandler)
     def onMouseClick(self, args:adsk.core.MouseEventArgs):
-        if args.keyboardModifiers & adsk.core.KeyboardModifiers.AltKeyboardModifier:
-            self.mouseClickAction = self.controller.selectAllFaces
-            return
-        self.mouseClickAction = self.controller.selectFace
+        pass
+        # if args.keyboardModifiers & adsk.core.KeyboardModifiers.AltKeyboardModifier:
+        #     self.mouseClickAction = self.controller.selectAllFaces
+        #     return
+        # self.mouseClickAction = self.controller.selectFace
 
     @eventHandler(handler_cls = adsk.core.CommandEventHandler)
     def onExecutePreview(self, args: adsk.core.CommandEventArgs):
         if self.controlKeyPressed:
             return
 
-        for body in self.register.registeredBodyEntitiesAsList:
-            # targetBody = body.bRepBodies.item(0)
-            toolCollection = adsk.core.ObjectCollection.create()
-            # tempBrepMgr = adsk.fusion.TemporaryBRepManager.get()
-            # toolBodies = None
+        # for body in self.register.registeredBodyEntitiesAsList:
+        toolCollection = adsk.core.ObjectCollection.create()
+
+        toolBodies = self.controller.getScribeEdgeTool(bodyEntity = body, 
+                                                        params = self.dbParams)
+
+        baseFeatures = g._rootComp.features.baseFeatures
+        baseFeature = baseFeatures.add()
+        baseFeature.name = 'scribeEdge'
+
+        baseFeature.startEdit()
+        dbB = g._rootComp.bRepBodies.add(toolBodies, baseFeature)
+        dbB.name = 'scribeEdgeTool'
+        baseFeature.finishEdit()
+
+        toolCollection.add(baseFeature.bodies.item(0))
+        targetBody = self.register.registeredFacesByBodyAsList(body.entityToken)[0].entity.body
 
 
-            toolBodies = self.controller.getDogboneTool(bodyEntity = body, 
-                                                            params = self.dbParams)
-
-            baseFeatures = g._rootComp.features.baseFeatures
-            baseFeature = baseFeatures.add()
-            baseFeature.name = 'dogbone'
-
-            baseFeature.startEdit()
-            dbB = g._rootComp.bRepBodies.add(toolBodies, baseFeature)
-            dbB.name = 'dogboneTool'
-            baseFeature.finishEdit()
-
-            toolCollection.add(baseFeature.bodies.item(0))
-            targetBody = self.register.registeredFacesByBodyAsList(body.entityToken)[0].entity.body
-
-
-            combineInput = g._rootComp.features.combineFeatures.createInput(targetBody = targetBody, 
-                                                                            toolBodies = toolCollection)
-            combineInput.isKeepToolBodies = False
-            combineInput.isNewComponent = False
-            combineInput.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
-            combine = g._rootComp.features.combineFeatures.add(combineInput)
+        combineInput = g._rootComp.features.combineFeatures.createInput(targetBody = targetBody, 
+                                                                        toolBodies = toolCollection)
+        combineInput.isKeepToolBodies = False
+        combineInput.isNewComponent = False
+        combineInput.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
+        combine = g._rootComp.features.combineFeatures.add(combineInput)
 
     @eventHandler(handler_cls = adsk.core.CommandEventHandler)
     def onEditActivate(self, eventArgs:adsk.core.CommandEventArgs):
@@ -679,32 +560,17 @@ class DogboneCommand(object):
         # Roll the timeline to just before the custom feature being edited.
         self._alreadyCreatedCustomFeature.timelineObject.rollTo(rollBefore = True)
         _isRolledForEdit = True
-        self.register.clear()
+        # self.register.clear()
 
         # Define a transaction marker so the the roll is not aborted with each change.
         eventArgs.command.beginStep()
 
         dependencies = self._alreadyCreatedCustomFeature.dependencies
 
-        entityList = [d.entity for d in dependencies if 'selected' in d.id]
-        faces = faceSelections(entityList)
-        edges = edgeSelections(entityList)
-
-        for face in faces:
-            
-            if face.entityToken in self.register.registeredFacesAsList:
-                continue
-            self.controller.registerAllFaces(face)
-
-        for edge in edges:
-            if edge.entityToken not in self.register.registeredEdgesAsList:
-                raise EdgeNotRegistered
-            self.controller.selectEdge(edge)
-
         self.handlerEnabled = False
         self.controlKeyPressed = True
-        self.setSelections(commandInputs = eventArgs.firingEvent.sender.commandInputs,
-        activeCommandInput = eventArgs.firingEvent.sender.commandInputs.itemById('select'))        
+        # self.setSelections(commandInputs = eventArgs.firingEvent.sender.commandInputs,
+        activeCommandInput = eventArgs.commandInputs.itemById('select')        
         self.controlKeyPressed = False
         self.handlerEnabled = True
         attribs = self._alreadyCreatedCustomFeature.attributes
@@ -714,7 +580,7 @@ class DogboneCommand(object):
     @eventHandler(handler_cls = adsk.core.CommandEventHandler)
     def onDeactivate(self, inputs:adsk.core.CommandEventArgs):
         logger.debug('onDeactivate')
-        self.register.clear()
+        # self.register.clear()
         pass
 
     @eventHandler(handler_cls = adsk.core.ApplicationCommandEventHandler)
@@ -735,33 +601,6 @@ class DogboneCommand(object):
         logger.debug('onEdit')
         pass
             
-    def setSelections(self, 
-                    commandInputs:adsk.core.CommandInputs = None, 
-                    activeCommandInput:adsk.core.CommandInput = None): 
-        '''updates the UI selection with the selected entities'''
-        collection = adsk.core.ObjectCollection.create()
-        g._ui.activeSelections.clear()
-        
-        faceObjects = self.register.selectedFacesAsList
-        edgeObjects = self.register.selectedgesAsList
-
-        commandInputs.itemById('select').hasFocus = True        
-        for faceObject in faceObjects:
-            collection.add(faceObject.entity)
-            
-        g._ui.activeSelections.all = collection
-        
-        commandInputs.itemById('edgeSelect').isVisible = True
-    
-        commandInputs.itemById('edgeSelect').hasFocus = True        
-        
-        for edgeObject in edgeObjects:
-            collection.add(edgeObject.entity)
-            
-        g._ui.activeSelections.all = collection
-        
-        activeCommandInput.hasFocus = True
-
     #==============================================================================
     #  routine to process any changed selections
     #  this is where selection and deselection management takes place
@@ -770,132 +609,72 @@ class DogboneCommand(object):
     @eventHandler(handler_cls = adsk.core.InputChangedEventHandler)
     def onChange(self, args:adsk.core.InputChangedEventArgs):
 
-        if not self.handlerEnabled:
-            return
-
         changedInput: adsk.core.CommandInput = args.input
+        unitsManager = g._design.unitsManager
 
-        if changedInput.id == 'dogboneType':
-            changedInput.commandInputs.itemById('minimalPercent').isVisible = \
-                (changedInput.commandInputs.itemById('dogboneType').selectedItem.name == 'Minimal Dogbone')
-            changedInput.commandInputs.itemById('mortiseType').isVisible = \
-                (changedInput.commandInputs.itemById('dogboneType').selectedItem.name == 'Mortise Dogbone')
-       
+        if changedInput.id == 'scribeEdgeType':
+            self.edgeType = changedInput.selectedItem.index
+            return
 
-        if changedInput.id != 'select' and changedInput.id != 'edgeSelect':
+        if changedInput.id == 'csvFile':
+            if not changedInput.value:
+                dlg = g._ui.createFileDialog()
+                dlg.title = 'Open CSV File'
+                dlg.filter = 'Comma Separated Values (*.csv);;All Files (*.*)'
+                # if dlg.showOpen() != adsk.core.DialogResults.DialogOK :
+                #     return
+                
+                # filename = dlg.filename
+                filename = g._appPath + '\Book1.csv'#'d:/documents/Book1.csv'
+                # df = pd.read_csv(filename, usecols=['dist','offset'], dtype="string")
+                df = pd.read_csv(filename, usecols=['dist','offset'], dtype="string")
+                self.data = df.applymap(unitsManager.evaluateExpression) #convert everything to internal units.
+                args.inputs.itemById('fileTextBox').text = filename
+                return
+            else:
+                self.data = None
+                args.inputs.itemById('fileTextBox').text = None
+                return
+
+        if changedInput.id != 'selectedFace' and changedInput.id != 'refEdge' and changedInput.id != 'scribedEdge':
             # args.firingEvent.sender.doExecutePreview()
             return
             
-        activeSelections = g._ui.activeSelections.all #save active selections
-        # Note: selections are sensitive and fragile, any processing beyond just reading on live selections will destroy selection 
-
         logger.debug(f'input changed- {changedInput.id}')
-        faces = faceSelections(activeSelections)
-        edges = edgeSelections(activeSelections)
         
-        if changedInput.id == 'select':
+        if changedInput.id == 'selectedFace':
+            if args.input.selectionCount:
+                self.face = changedInput.selection(0).entity
+                args.inputs.itemById('refEdge').isVisible = True
+                args.inputs.itemById('refEdge').hasFocus = True
+            else:
+                self.face = None
+                args.inputs.itemById('refEdge').isVisible = False
+                args.inputs.itemById('scribedEdge').isVisible = False
+            return
+            logger.debug(f'input changed- {changedInput.id}')
 
-            #==============================================================================
-            #            processing changes to face selections
-            #==============================================================================            
-
-            removedFaces = [face.entity for face in self.register.selectedFacesAsList if face.entity not in faces]
-            addedFaces = [faceEntity for faceEntity in faces if hash(faceEntity.entityToken) not in self.register.selectedFacesAsList]
-            
-            for face in removedFaces:
-                #==============================================================================
-                #         Faces have/has been removed
-                #==============================================================================
-                logger.debug(f'face being removed {face}')
-                self.controller.deSelectFace(face)
-                            
-            for face in addedFaces:
-            #==============================================================================
-            #             Faces have/has been added 
-            #==============================================================================
-                 
-                logger.debug(f'face being added: {face}')
-
-                if face not in self.register.registeredFacesAsList :
-                    self.controller.registerAllFaces(face)
-                self.mouseClickAction(face)
-                            
-                if not changedInput.commandInputs.itemById('edgeSelect').isVisible:
-                    changedInput.commandInputs.itemById('edgeSelect').isVisible = True
-            self.setSelections(commandInputs = changedInput.commandInputs,
-                    activeCommandInput = changedInput.commandInputs.itemById('select')) #update selections
-
-            # args.firingEvent.sender.doExecutePreview()
+        if changedInput.id == 'refEdge':
+            if changedInput.selectionCount:
+                self.refEdge = changedInput.selection(0).entity
+                args.inputs.itemById('scribedEdge').isVisible = True
+                args.inputs.itemById('scribedEdge').hasFocus = True
+            else:
+                self.refEdge = None
+                args.inputs.itemById('selectedFace').hasFocus = True
+                args.inputs.itemById('refEdge').isVisible = False
+                args.inputs.itemById('scribedEdge').isVisible = False
             return
 
-#==============================================================================
-#                  end of processing faces
-#==============================================================================
-
-
-        #==============================================================================
-        #         Processing changed edge selection            
-        #==============================================================================
-        if changedInput.id != 'edgeSelect':
-            # args.firingEvent.sender.doExecutePreview()
-
+        if changedInput.id == 'scribedEdge':
+            if changedInput.selectionCount:
+                self.scribedEdge = changedInput.selection(0).entity
+            else:
+                self.scribedEdge = None
+                args.inputs.itemById('refEdge').hasFocus = True
+                args.inputs.itemById('scribedEdge').isVisible = False
             return
-            
-        removedEdges = [edge.entity for edge in self.register.selectedgesAsList if edge.entity not in edges]
-        addedEdges = [edgeEntity for edgeEntity in edges if hash(edgeEntity.entityToken) not in self.register.selectedgesAsList]
 
-
-        for edge in removedEdges:
-            #==============================================================================
-            #             Edges have been removed
-            #==============================================================================
-            self.controller.deSelectEdge(edge)
-
-        for edge in addedEdges:
-            #==============================================================================
-            #         Edges have been added
-            #==============================================================================
-            self.controller.selectEdge(edge)
-            # edge.dbParams = self.dbParams
-            
-        self.setSelections(commandInputs = changedInput.commandInputs, 
-                            activeCommandInput = changedInput.commandInputs.itemById('edgeSelect'))
-        # args.firingEvent.sender.doExecutePreview()
-
-
-    def parseInputs(self, inputs):
-        '''==============================================================================
-           put the selections into variables that can be accessed by the main routine            
-           ==============================================================================
-       '''
-        inputs = {inp.id: inp for inp in inputs}
-
-        logger.debug('Parsing inputs')
-
-        self.toolDiaStr = inputs['toolDia'].expression
-        self.dbParams.toolDia = inputs['toolDia'].value
-        self.toolDiaOffsetStr = inputs['toolDiaOffset'].expression
-        self.dbParams.toolDiaOffset = inputs['toolDiaOffset'].value
-        self.benchmark = inputs['benchmark'].value
-        self.dbParams.dbType = inputs['dogboneType'].selectedItem.name
-        self.dbParams.minimalPercent = inputs['minimalPercent'].value
-        self.dbParams.fromTop = (inputs['depthExtent'].selectedItem.name == 'From Top Face')
-        self.dbParams.longSide = (inputs['mortiseType'].selectedItem.name == 'On Long Side')
-        self.expandModeGroup = (inputs['modeGroup']).isExpanded
-        self.expandSettingsGroup = (inputs['settingsGroup']).isExpanded
-
-        logger.debug(f'self.fromTop = {self.dbParams.fromTop}')
-        logger.debug(f'self.dbType = {self.dbParams.dbType}')
-        logger.debug(f'self.toolDiaStr = {self.toolDiaStr}')
-        logger.debug(f'self.toolDia = {self.dbParams.toolDia}')
-        logger.debug(f'self.toolDiaOffsetStr = {self.toolDiaOffsetStr}')
-        logger.debug(f'self.toolDiaOffset = {self.dbParams.toolDiaOffset}')
-        logger.debug(f'self.benchmark = {self.benchmark}')
-        logger.debug(f'self.mortiseType = {self.dbParams.longSide}')
-        logger.debug(f'self.expandModeGroup = {self.expandModeGroup}')
-        logger.debug(f'self.expandSettingsGroup = {self.expandSettingsGroup}')
-        
-        
     def closeLogger(self):
 #        logging.shutdown()
         for handler in logger.handlers:
@@ -903,64 +682,67 @@ class DogboneCommand(object):
             handler.close()
             logger.removeHandler(handler)
 
-    @eventHandler(handler_cls = adsk.core.CommandEventHandler)
-    def onDestroy(self, args:adsk.core.CommandEventArgs):
-        self.register.clear()
+    # @eventHandler(handler_cls = adsk.core.CommandEventHandler)
+    # def onDestroy(self, args:adsk.core.CommandEventArgs):
+        # self.register.clear()
 
     @eventHandler(handler_cls = adsk.core.CommandEventHandler)
     def onExecute(self, args:adsk.core.CommandEventArgs):
         start = time.time()
 
         logger.log(0, 'logging Level = %(levelname)')
-        self.parseInputs(args.firingEvent.sender.commandInputs)
-        logger.setLevel(self.logging)
-        self.writeDefaults()
         defLengthUnits = g._design.unitsManager.defaultLengthUnits
         custFeatInput:adsk.fusion.CustomFeatureInput  = g._rootComp.features.customFeatures.createInput(self._customFeatureDef)
-        topFaces = json.dumps(self.register.topFacesByBodyasDict)
-  
         featuresCreated = []
+        body = self.face.body
 
-        for i, body in enumerate(self.register.registeredBodyEntitiesAsList):
-            component = body.parentComponent
-            # component = g._rootComp
-            
-            # custFeatInput:adsk.fusion.CustomFeatureInput  = component.features.customFeatures.createInput(self._customFeatureDef)
-            edges = [edgeObject.entity for edgeObject in self.register.selectedgesByBodyAsList(body)]
-
-            toolCollection = adsk.core.ObjectCollection.create()
-
-            toolBodies = self.controller.getDogboneTool(bodyEntity = body, 
-                                                            params = self.dbParams)
-
-            baseFeatures = component.features.baseFeatures
-            baseFeature = baseFeatures.add()
-            featuresCreated.append(baseFeature)
-            baseFeature.name = 'dogbone'
-
-            baseFeature.startEdit()
-            dbB = component.bRepBodies.add(toolBodies, baseFeature)
-            dbB.name = 'dogboneTool'
-            baseFeature.finishEdit()
-
-            toolCollection.add(baseFeature.bodies.item(0))
-            targetBody = self.register.registeredFacesByBodyAsList(body.entityToken)[0].entity.body
+        component = body.parentComponent
+        
+        # toolCollection = adsk.core.ObjectCollection.create()
 
 
-            combineInput = component.features.combineFeatures.createInput(targetBody = targetBody, 
-                                                                            toolBodies = toolCollection)
-            combineInput.isKeepToolBodies = False
-            combineInput.isNewComponent = False
-            combineInput.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
-            combine = component.features.combineFeatures.add(combineInput)
-            featuresCreated.append(combine)
+        # self.baseFeatures = component.features.baseFeatures
+        # self.baseFeature = self.baseFeatures.add()
+        # featuresCreated.append(self.baseFeature)
+        # self.baseFeature.name = 'scribeEdge'
+
+        # self.baseFeature.startEdit()
+
+        toolProfiles = self.getScribeProfiles()
+
+        # extrudeFeatureInput:adsk.fusion.ExtrudeFeatureInput = g._rootComp.features.extrudeFeatures.createInput(toolProfiles, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+        # extrudeFeatureInput.participantBodies = [body]
+        
+        # allExtentDefinition = adsk.fusion.ThroughAllExtentDefinition.create()
+        # extrudeFeatureInput.setOneSideExtent(allExtentDefinition, adsk.fusion.ExtentDirections.NegativeExtentDirection)
+        # extrudeDistance = adsk.fusion.DistanceExtentDefinition.create()
+        # g._rootComp.features.extrudeFeatures.add(extrudeFeatureInput)
+
+
+        # dbB = component.bRepBodies.add(toolBodies, self.baseFeature)
+        # dbB.name = 'scribeEdgeTool'
+        # self.baseFeature.finishEdit()
+
+        return
+
+        toolCollection.add(self.baseFeature.bodies.item(0))
+
+        combineInput = component.features.combineFeatures.createInput(targetBody = body, 
+                                                                        toolBodies = toolCollection)
+        combineInput.isKeepToolBodies = False
+        combineInput.isNewComponent = False
+        combineInput.operation = adsk.fusion.FeatureOperations.JoinFeatureOperation \
+            if self.edgeType \
+            else adsk.fusion.FeatureOperations.CutFeatureOperation
+        combine = component.features.combineFeatures.add(combineInput)
+        featuresCreated.append(combine)
             # custFeat:adsk.fusion.CustomFeature = component.features.customFeatures.add(custFeatInput)
 
 
         toolDiameter = adsk.core.ValueInput.createByReal(self.dbParams.toolDia)
         _ = custFeatInput.addCustomParameter('toolDiameter',
                                             'ToolDiameter', 
-                                            toolDiameter,
+                                            toolDiamete_,
                                             defLengthUnits, 
                                             True)
         # custFeatInput.addDependency('toolDiameter', toolDiaPara)
@@ -1000,20 +782,21 @@ class DogboneCommand(object):
 
         dependency = custFeat.dependencies
         
-        for i, entity in enumerate( self.register.allSelectedAsEntityList):
-            _ = dependency.add(f'selected{i}', entity)
+        # for i, entity in enumerate( self.register.allSelectedAsEntityList):
+        #     _ = dependency.add(f'selected{i}', entity)
 
         # Roll the timeline to its previous position.
         timelineObject.rollTo(False)
 
         # custFeat.customNamedValues.addOrSetValue('Faces', topFaces)
-        custFeat.customNamedValues.addOrSetValue('SelectedEntities', json.dumps(self.register.allSelectedAsTokenList))
+        # custFeat.customNamedValues.addOrSetValue('SelectedEntities', json.dumps(self.register.allSelectedAsTokenList))
 
-        custFeat.customNamedValues.addOrSetValue('dbType', self.dbParams.dbType )
-        custFeat.customNamedValues.addOrSetValue('fromTop', str(self.dbParams.fromTop) )
-        custFeat.customNamedValues.addOrSetValue('longSide', str(self.dbParams.longSide) )
+        custFeat.customNamedValues.addOrSetValue('face', self.face )
+        custFeat.customNamedValues.addOrSetValue('refEdge', self.refEdge )
+        custFeat.customNamedValues.addOrSetValue('scribedEdge', self.scribedEdge )
+        custFeat.customNamedValues.addOrSetValue('edgeType', self.edgeType )
 
-        logger.info(f'\n{"-"*80}\n{" "*29}all dogbones complete\n{"-"*80}\n')
+        logger.info(f'\n{"-"*80}\n{" "*29}all scribeEdges complete\n{"-"*80}\n')
 
         self.closeLogger()
 
@@ -1024,8 +807,8 @@ class DogboneCommand(object):
             util.messageBox(f'Reported errors:{self.errorCount}\nYou may not need to do anything, \nbut check holes have been created'.format())
 
     @eventHandler(handler_cls = adsk.fusion.CustomFeatureEventHandler)
-    def computeDogbones(self, args: adsk.fusion.CustomFeatureEventArgs):
-        logger.debug('computeDogbones')
+    def computeScribeEdges(self, args: adsk.fusion.CustomFeatureEventArgs):
+        logger.debug('computeScribeEdges')
 
         if not self.handlerEnabled:
             return
@@ -1044,25 +827,16 @@ class DogboneCommand(object):
         combine = g._rootComp.features.combineFeatures.updateBody(combineInput)
         combine.name = 'dbCombine'
                                 
-        # adsk.doEvents()
-        
-        # if errorCount >0:
-        #     util.messageBox('Reported errors:{}\nYou may not need to do anything, \nbut check holes have been created'.format(errorCount))
-
-
     ################################################################################        
     @eventHandler(handler_cls = adsk.core.ValidateInputsEventHandler)
     def onValidate(self, args:adsk.core.ValidateInputsEventArgs):
         cmd: adsk.core.ValidateInputsEventArgs = args
         cmd = args.firingEvent.sender
 
-        for input in cmd.commandInputs:
-            if input.id == 'select':
-                if input.selectionCount < 1:
-                    args.areInputsValid = False
-            elif input.id == 'circDiameter':
-                if input.value <= 0:
-                    args.areInputsValid = False
+        args.areInputsValid = cmd.commandInputs.itemById('selectedFace').selectionCount \
+                            and cmd.commandInputs.itemById('refEdge').selectionCount \
+                            and cmd.commandInputs.itemById('scribedEdge').selectionCount \
+                            and self.data is not None
                     
     @eventHandler(handler_cls = adsk.core.SelectionEventHandler)
     def onPreSelect(self, args:adsk.core.SelectionEventArgs):
@@ -1070,27 +844,229 @@ class DogboneCommand(object):
             Routine gets called with every mouse movement, if a commandInput select is active                   
            ==============================================================================
        '''
-        eventArgs: adsk.core.SelectionEventArgs = args
         # Check which selection input the event is firing for.
-        activeIn = eventArgs.firingEvent.activeInput
-        if activeIn.id != 'select' and activeIn.id != 'edgeSelect':
-            return # jump out if not dealing with either of the two selection boxes
-
-        # if activeIn.id == 'select':
-            #==============================================================================
-            # processing activities when faces are being selected
-            #        selection filter is limited to planar faces
-            #        makes sure only valid occurrences and bodys are selectable
-            #==============================================================================
-
-
-        if not self.controlKeyPressed and len(self.register.registerList):
-            eventArgs.isSelectable = False
+        activeIn = args.activeInput
+        selection = args.selection
+        if not self.face and activeIn.id != 'refEdge' and activeIn.id != 'scribedEdge':
+            return # jump out if not dealing with any of the selection boxes
+        
+        sameFace = selection.entity in self.face.loops.item(0).edges
+        if not sameFace:
+            args.isSelectable = False
             return
         
-        eventArgs.isselectable = self.register.isEntitySelectable(eventArgs.selection.entity) if len(self.register.registerList) else True
+        if activeIn.id == 'refEdge':
+            args.isSelectable = sameFace
+            return
+
+        if activeIn.id == 'scribedEdge':
+            selection:adsk.fusion.BRepEdge
+            self.refEdgeStart: adsk.fusion.BRepVertex
+            self.refEdgeEnd: adsk.fusion.BRepVertex
+
+            self.refEdgeStart = selection.entity.startVertex
+            self.refEdgeEnd = selection.entity.endVertex
+
+            # _, self.refEdgeStart, self.refEdgeEnd = selection.entity.geometry.evaluator.getEndPoints()
+
+            args.isSelectable =  (selection.entity in self.refEdgeStart.edges) or (selection.entity in self.refEdgeEnd.edges)
+
+            # allow select if edge is joined to refEdge (shares same start or end vertex)  
+            # args.isSelectable = selection.entity.endVertex == self.refEdge.startVertex or \
+            #                     selection.entity.startVertex == self.refEdge.endVertex
+            #                     # selection.entity.startVertex == self.refEdge.startVertex or
+            #                     # selection.entity.endVertex == self.refEdge.endVertex or
+            return
 
         return
+
+
+    def getScribeProfiles(self)->adsk.core.ObjectCollection:
+        '''
+        calculates and returns objectCollection of profiles for this scribe edged
+        
+        '''
+        logger.debug(f'processing {self}-----------------------------')
+        
+        #   get the two faces associated with the edge
+
+        def prev_and_next(iterable):
+            prevs, items, nexts = tee(iterable, 3)
+            prevs = chain([None], prevs)
+            nexts = chain(islice(nexts, 1, None), [None])
+            return zip(prevs, items, nexts)
+
+        sketches = g._rootComp.sketches #get sketches variable
+
+        if self.edgeType:
+            startOffset = self.data.offset.min()
+        else:
+            startOffset = self.data.offset.max()
+
+        minx = self.data.dist.min()
+        maxx = self.data.dist.max()
+        miny = self.data.offset.min()
+        maxy = self.data.offset.max()
+
+        self.data.offset = self.data.offset.apply(lambda x: x - startOffset)
+
+        sketch: adsk.fusion.Sketch = sketches.addWithoutEdges(self.face)  #create new sketch object with selected face as plane
+
+        refLine = sketch.project(self.refEdge).item(0)
+        refLine.isConstruction = True
+
+        scribedLineCollection = sketch.project(self.scribedEdge)
+        scribedLine = scribedLineCollection.item(0)  #get actual scribed line
+        scribedLine.isConstruction = True
+        scribedEdgeCollecton = sketch.project(self.scribedEdge)
+        
+        _, _, intersectionPoint = refLine.intersections(scribedEdgeCollecton)  #find corner where refLine and scribed Line meet
+        cornerPoint: adsk.core.Point3D = intersectionPoint.item(0)
+
+        refDirStart = refStart = refLine.startSketchPoint
+        refDirEnd = refEnd = refLine.endSketchPoint
+
+        if not refEnd.geometry.isEqualTo(cornerPoint):  #check that refLine is the right way around
+            refStart, refEnd = (refEnd, refStart)  #using unpacking to swap values, much easier than using temporary holding variables
+        refLineVector: adsk.core.Vector3D = refStart.geometry.vectorTo(refEnd.geometry)
+
+        scribeDirStart = scribeStart = scribedLine.startSketchPoint
+        scribeDirEnd = scribeEnd = scribedLine.endSketchPoint
+
+        if not scribeStart.geometry.isEqualTo(cornerPoint): #check that scribeLine is the right way around
+            scribeStart, scribeEnd = (scribeEnd, scribeStart)
+        scribedLineVector: adsk.core.Vector3D = scribeStart.geometry.vectorTo(scribeEnd.geometry)
+
+
+        angle = refLineVector.crossProduct(scribedLineVector)
+        angle.normalize()
+        cw = angle.z <0 #cw is clockwise
+        # side = -angle.z  #side will be 1 for left side, 1 for right side
+        # if ref corner is on right side then we need to swap direction of vector
+        # scribedLineVector always points away from corner, or ref line, which is needed to calculate side, via cross product
+        # but now we need the direction compared to coordinate system
+        x = 0
+        if not cw:
+            scribeStart, scribeEnd = (scribeEnd, scribeStart)
+        scribedLineDirectionVector: adsk.core.Vector3D = scribeStart.geometry.vectorTo(scribeEnd.geometry)
+
+        originPoint = sketch.originPoint.geometry
+        xAxis = adsk.core.Vector3D.create(1,0,0)
+        zAxis = adsk.core.Vector3D.create(0,0,1)
+
+        angle = xAxis.angleTo(scribedLineDirectionVector)
+
+        moveMatrix = adsk.core.Matrix3D.create()
+
+        if not cw:
+            self.data.dist = self.data.dist.apply(lambda x: -x) 
+
+        moveMatrix.setToRotation(angle, zAxis, originPoint)
+        logger.debug(f'after rotation: {moveMatrix.asArray()}')
+
+        moveMatrix.translation = originPoint.vectorTo(cornerPoint)
+        logger.debug(f'after move: {moveMatrix.asArray()}')
+
+        data = self.data.to_dict('records')
+        sketchLines = adsk.core.ObjectCollection.create()
+        for previous, line, nxt in prev_and_next( data):
+            try:
+                startPoint = adsk.core.Point3D.create(line['dist'], line['offset'], 0 )
+                endPoint = adsk.core.Point3D.create(nxt['dist'], nxt['offset'], 0 )
+                sketchLines.add(sketch.sketchCurves.sketchLines.addByTwoPoints(startPoint, endPoint))
+                # logger.debug(f'\rstart: {tmp.geometry.startPoint.asArray()}\r end: {tmp.geometry.endPoint.asArray()}')
+            except:
+                break
+
+
+        sketch.move(sketchLines, moveMatrix)
+
+        scribeLineStartPoint = sketchLines.item(0).startSketchPoint
+        scribeLineEndPoint = sketchLines.item(sketchLines.count - 1).endSketchPoint
+
+        if cw:
+            sketch.sketchCurves.sketchLines.addByTwoPoints(scribeLineStartPoint, scribeStart)
+            sketch.sketchCurves.sketchLines.addByTwoPoints(scribeStart, scribeEnd)
+            sketch.sketchCurves.sketchLines.addByTwoPoints(scribeEnd, scribeLineEndPoint)
+        else:
+            sketch.sketchCurves.sketchLines.addByTwoPoints(scribeLineStartPoint, scribeEnd)
+            sketch.sketchCurves.sketchLines.addByTwoPoints(scribeEnd, scribeStart)
+            sketch.sketchCurves.sketchLines.addByTwoPoints(scribeStart, scribeLineEndPoint)
+
+        profiles = sketch.profiles
+        profileCollection = adsk.core.ObjectCollection.create()
+        for profile in profiles:
+            profileCollection.add(profile)
+
+        return profileCollection
+        
+        extrudeFeatureInput = g._rootComp.features.extrudeFeatures.createInput(profileCollection, adsk.fusion.FeatureOperations.CutFeatureOperation)
+        extrudeFeatureInput.targetBaseFeature = self.baseFeature
+        extrudeFeatureInput.setOneSideExtent(adsk.fusion.AllExtentDefinition, adsk.fusion.ExtentDirections.NegativeExtentDirection)
+        g._rootComp.features.extrudeFeatures.add(extrudeFeatureInput)
+
+        return
+        '''       
+        
+        tempBrepMgr = adsk.fusion.TemporaryBRepManager.get()
+        dbBody = tempBrepMgr.createCylinderOrCone(startPoint, toolRadius, endPoint, toolRadius)
+
+        
+        dbBox = None  #initialize temp brep box, incase it's going to be used - might not be needed
+        #   TODO
+        # if  cornerAngle != 0 and cornerAngle != pi/2:  # 0 means that the angle between faces is also 0 
+        if  params.minAngleLimit < cornerAngle < params.maxAngleLimit:  # 0 means that the angle between faces is also 0 
+
+            # creating a box that will be used to clear the path the tool takes to the dogbone hole
+            # box width is toolDia
+            # box height is same as edge length
+            # box length is from the hole centre to the point where the tool starts cutting the sides
+
+
+            #   find the orthogonal vector of the centreLine => make a copy then rotate by 90degrees
+            logger.debug("Adding acute angle clearance box")
+            cornerTan = tan(cornerAngle/2)
+
+            moveMatrix = adsk.core.Matrix3D.create()
+            moveMatrix.setToRotation(pi/2, edgeVecto_, startPoint)
+            
+            widthVectorDirection = centreLineVector.copy()
+            widthVectorDirection.transformBy(moveMatrix)
+        
+            boxLength = toolRadius*minPercent/cornerTan - toolRadius
+            boxCentre = startPoint.copy()
+            boxWidth = params.toolDia
+            
+            boxCentreVector = centreLineVector.copy()
+            boxCentreVector.normalize()
+            boxCentreVector.scaleBy(boxLength/2)
+            
+            boxCentreHeightVect = edgeVector.copy()
+            boxCentreHeightVect.normalize()
+            boxHeight = startPoint.distanceTo(topPoint)
+            #need to move Box centre point by height /2 to keep top and bottom aligned with cylinder 
+            boxCentreHeightVect.scaleBy(boxHeight/2) 
+            
+            boxCentre.translateBy(boxCentreVector)
+            boxCentre.translateBy(boxCentreHeightVect)
+
+            if (boxLength < 0.001):
+                boxLength = .001 
+            
+            boundaryBox = adsk.core.OrientedBoundingBox3D.create(centerPoint = boxCentre, 
+                                                                lengthDirection = centreLineVecto_, 
+                                                                widthDirection = widthVectorDirection, 
+                                                                length = boxLength, 
+                                                                width = boxWidth, 
+                                                                height = boxHeight)
+            
+            dbBox = tempBrepMgr.createBox(boundaryBox)
+            tempBrepMgr.booleanOperation(targetBody = dbBody, 
+                                        toolBody = dbBox, 
+                                        booleanType = adsk.fusion.BooleanTypes.UnionBooleanType)
+        '''            
+        return dbBody  #temporary body ready to be unioned to other bodies    
+
 
     @timer
     def test_compare(self, entity):

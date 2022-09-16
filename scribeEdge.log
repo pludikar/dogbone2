@@ -1,0 +1,26 @@
+2022-09-15 19:27:30,113; scribeEdge.command; INFO; 36; __init__ ; scribeEdge.command
+2022-09-15 19:27:30,120; scribeEdge; INFO; 53; run ; run - adding Command Button
+2022-09-15 19:27:30,182; scribeEdge.command; DEBUG; 119; addButtons ; {default: [(CommandCreated, onCreate_handler ),
+(CommandCreated, onEditCreate_handler ),
+(customFeatureCompute, computeScribeEdges_handler ) ] }
+2022-09-15 19:28:33,768; scribeEdge.command; INFO; 164; onCreate ; 
+================================================================================
+--------------------------------scribeEdge started---------------------------------
+================================================================================
+2022-09-15 19:28:33,869; scribeEdge.command; DEBUG; 282; onCreate ; {default: [(CommandCreated, onCreate_handler ),
+(CommandCreated, onEditCreate_handler ),
+(customFeatureCompute, computeScribeEdges_handler ),
+(OnExecute, onExecute_handler ),
+(OnDeactivate, onDeactivate_handler ),
+(PreSelectionEvent, onPreSelect_handler ),
+(AreInputsValid, onValidate_handler ),
+(InputValueChanged, onChange_handler ),
+(OnKeyDown, onKeyDown_handler ),
+(OnKeyUpEvent, onKeyUp_handler ),
+(OnMouseDoubleClickEvent, onMouseDoubleClick_handler ),
+(OnMouseClickEvent, onMouseClick_handler ) ] }
+2022-09-15 19:28:36,651; scribeEdge.command; DEBUG; 643; onChange ; input changed- selectedFace
+2022-09-15 19:28:38,132; scribeEdge.command; DEBUG; 643; onChange ; input changed- refEdge
+2022-09-15 19:28:39,458; scribeEdge.command; DEBUG; 643; onChange ; input changed- scribedEdge
+2022-09-15 19:28:43,067; scribeEdge.command; DEBUG; 582; onDeactivate ; onDeactivate
+2022-09-15 19:28:43,568; scribeEdge.command; DEBUG; 889; getScribeProfiles ; processing <__main__C%3A%2FUsers%2FUser%2FAppData%2FRoaming%2FAutodesk%2FAutodesk%20Fusion%20360%2FAPI%2FAddIns%2FScribeEdgeFeature%2FScribeEdgeFeature_py.dbClasses.command.ScribeEdgeCommand object at 0x0000020BAABA2C40>-----------------------------
